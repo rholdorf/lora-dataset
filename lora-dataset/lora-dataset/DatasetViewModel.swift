@@ -1,11 +1,3 @@
-//
-//  DatasetViewModel.swift
-//  lora-dataset
-//
-//  Created by Rui Holdorf on 03/08/25.
-//
-
-
 import Foundation
 import SwiftUI
 import AppKit
@@ -13,10 +5,25 @@ import AppKit
 @MainActor
 class DatasetViewModel: ObservableObject {
     @Published var pairs: [ImageCaptionPair] = []
-    @Published var selected: ImageCaptionPair? = nil
+    @Published var selectedID: UUID? = nil
     @Published var directoryURL: URL? = nil
+
+    // URL resolvida com escopo de segurança (security-scoped)
+    private var securedDirectoryURL: URL? = nil
+
     let supportedImageExtensions = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
     let supportedCaptionExtensions = ["txt", "caption"]
+
+    var selectedPair: ImageCaptionPair? {
+        guard let id = selectedID else { return nil }
+        return pairs.first { $0.id == id }
+    }
+
+    init() {
+        Task {
+            await restorePreviousDirectoryIfAvailable()
+        }
+    }
 
     func chooseDirectory() async {
         let panel = NSOpenPanel()
@@ -26,8 +33,83 @@ class DatasetViewModel: ObservableObject {
         panel.title = "Selecione o diretório do dataset"
         if panel.runModal() == .OK, let url = panel.url {
             directoryURL = url
+
+            // Criar bookmark com escopo e persistir
+            do {
+                let bookmarkData = try url.bookmarkData(
+                    options: .withSecurityScope,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+                UserDefaults.standard.set(bookmarkData, forKey: "lastDatasetFolderBookmark")
+            } catch {
+                print("Erro criando bookmark:", error)
+            }
+
+            // Resolver o bookmark imediatamente para obter a URL com escopo válida
+            do {
+                var isStale = false
+                let bookmarkData = try url.bookmarkData(
+                    options: .withSecurityScope,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+                let resolved = try URL(
+                    resolvingBookmarkData: bookmarkData,
+                    options: [.withSecurityScope],
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &isStale
+                )
+                securedDirectoryURL = resolved
+                if isStale {
+                    // Se estiver stale, poderia recriar o bookmark mais adiante
+                    print("Bookmark estava stale; considerar recriar.")
+                }
+            } catch {
+                print("Erro resolvendo bookmark para uso imediato:", error)
+                // fallback simples
+                securedDirectoryURL = url
+            }
+
             await scanDirectory(url)
         }
+    }
+
+    // Restaura pasta anterior se houver bookmark salvo
+    func restorePreviousDirectoryIfAvailable() async {
+        if let bookmarkData = UserDefaults.standard.data(forKey: "lastDatasetFolderBookmark") {
+            var isStale = false
+            do {
+                let resolved = try URL(
+                    resolvingBookmarkData: bookmarkData,
+                    options: [.withSecurityScope],
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &isStale
+                )
+                if isStale {
+                    print("Bookmark restaurado está stale.")
+                }
+                directoryURL = resolved
+                securedDirectoryURL = resolved
+                await scanDirectory(resolved)
+            } catch {
+                print("Erro resolvendo bookmark salvo:", error)
+            }
+        }
+    }
+
+    // Helper que ativa o escopo antes de executar e desativa depois
+    private func withScopedDirectoryAccess<T>(_ work: () throws -> T) rethrows -> T {
+        var didStart = false
+        if let secured = securedDirectoryURL, secured.startAccessingSecurityScopedResource() {
+            didStart = true
+        }
+        defer {
+            if didStart {
+                securedDirectoryURL?.stopAccessingSecurityScopedResource()
+            }
+        }
+        return try work()
     }
 
     func scanDirectory(_ folder: URL) async {
@@ -37,7 +119,6 @@ class DatasetViewModel: ObservableObject {
             return
         }
 
-        // Index captions by base name
         var captionMap: [String: URL] = [:]
         for file in contents {
             let ext = file.pathExtension.lowercased()
@@ -56,7 +137,6 @@ class DatasetViewModel: ObservableObject {
                 if let existing = captionMap[base] {
                     captionURL = existing
                 } else {
-                    // default caption file path: same name .txt
                     captionURL = folder.appendingPathComponent("\(base).txt")
                 }
 
@@ -69,33 +149,53 @@ class DatasetViewModel: ObservableObject {
             }
         }
 
-        // Sort alphabetically
         newPairs.sort { $0.imageURL.lastPathComponent < $1.imageURL.lastPathComponent }
         pairs = newPairs
-        selected = pairs.first
+        selectedID = pairs.first?.id
     }
 
-    func save(_ pair: ImageCaptionPair) {
+    func saveSelected() {
+        guard let id = selectedID,
+              let idx = pairs.firstIndex(where: { $0.id == id }) else { return }
+
+        let pair = pairs[idx]
+        let captionText = pair.captionText
+        let captionURL = pair.captionURL
+
         do {
-            try pair.captionText.write(to: pair.captionURL, atomically: true, encoding: .utf8)
-            // Update in array
-            if let idx = pairs.firstIndex(of: pair) {
-                pairs[idx] = pair
-                selected = pairs[idx]
+            try withScopedDirectoryAccess {
+                // Garante diretório
+                let folder = captionURL.deletingLastPathComponent()
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                try captionText.write(to: captionURL, atomically: true, encoding: .utf8)
+
+                // Verificação
+                let reloaded = try String(contentsOf: captionURL, encoding: .utf8)
+                if reloaded != captionText {
+                    print("[saveSelected] aviso: conteúdo lido de volta difere do escrito.")
+                } else {
+                    print("[saveSelected] salvo com sucesso em \(captionURL.path)")
+                }
             }
         } catch {
-            print("Erro ao salvar caption: \(error)")
+            print("[saveSelected] erro ao salvar caption:", error)
         }
     }
 
-    func reloadSelectedCaption() {
-        guard var sel = selected else { return }
-        if FileManager.default.fileExists(atPath: sel.captionURL.path) {
-            sel.captionText = (try? String(contentsOf: sel.captionURL, encoding: .utf8)) ?? ""
-            if let idx = pairs.firstIndex(of: sel) {
-                pairs[idx] = sel
-                selected = sel
+    func reloadCaptionForSelected() {
+        guard let id = selectedID,
+              let idx = pairs.firstIndex(where: { $0.id == id }) else { return }
+
+        do {
+            try withScopedDirectoryAccess {
+                var pair = pairs[idx]
+                if FileManager.default.fileExists(atPath: pair.captionURL.path) {
+                    pair.captionText = (try? String(contentsOf: pair.captionURL, encoding: .utf8)) ?? ""
+                    pairs[idx] = pair
+                }
             }
+        } catch {
+            print("Erro ao recarregar caption:", error)
         }
     }
 }

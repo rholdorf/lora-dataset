@@ -1,11 +1,5 @@
-//
-//  ContentView.swift
-//  lora-dataset
-//
-//  Created by Rui Holdorf on 03/08/25.
-//
-
 import SwiftUI
+import AppKit
 
 struct ContentView: View {
     @StateObject var vm = DatasetViewModel()
@@ -26,7 +20,7 @@ struct ContentView: View {
                 }
                 .padding(.horizontal)
 
-                List(selection: $vm.selected) {
+                List(selection: $vm.selectedID) {
                     ForEach(vm.pairs) { pair in
                         HStack {
                             Text(pair.imageURL.lastPathComponent)
@@ -35,27 +29,34 @@ struct ContentView: View {
                                 Text("sem caption").italic().foregroundColor(.secondary)
                             }
                         }
-                        .tag(pair)
+                        .tag(pair.id)
                     }
                 }
             }
             .frame(minWidth: 250)
 
         } detail: {
-            if let selected = vm.selected {
+            if let selectedID = vm.selectedID,
+               let idx = vm.pairs.firstIndex(where: { $0.id == selectedID }) {
+                let bindingCaption = Binding<String>(
+                    get: { vm.pairs[idx].captionText },
+                    set: { newText in
+                        vm.pairs[idx].captionText = newText
+                    }
+                )
+
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text(selected.imageURL.lastPathComponent)
+                        Text(vm.pairs[idx].imageURL.lastPathComponent)
                             .font(.headline)
                         Spacer()
                         Button("Recarregar Caption") {
-                            vm.reloadSelectedCaption()
+                            vm.reloadCaptionForSelected()
                         }
                     }
 
                     HSplitView {
-                        // Imagem
-                        if let nsImage = NSImage(contentsOf: selected.imageURL) {
+                        if let nsImage = NSImage(contentsOf: vm.pairs[idx].imageURL) {
                             Image(nsImage: nsImage)
                                 .resizable()
                                 .scaledToFit()
@@ -67,11 +68,10 @@ struct ContentView: View {
                                 .foregroundColor(.red)
                         }
 
-                        // Editor de caption
                         VStack(alignment: .leading) {
                             Text("Caption / descrição:")
                                 .font(.subheadline)
-                            TextEditor(text: binding(for: selected))
+                            TextEditor(text: bindingCaption)
                                 .font(.body)
                                 .overlay(RoundedRectangle(cornerRadius: 4).stroke(.secondary.opacity(0.5)))
                                 .frame(minHeight: 200)
@@ -79,7 +79,7 @@ struct ContentView: View {
                             HStack {
                                 Spacer()
                                 Button("Salvar") {
-                                    vm.save(selected)
+                                    vm.saveSelected()
                                 }
                             }
                         }
@@ -95,21 +95,5 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 900, minHeight: 500)
-    }
-
-    // Helper para criar binding mutável do caption do par selecionado
-    private func binding(for pair: ImageCaptionPair) -> Binding<String> {
-        Binding(get: {
-            vm.selected?.captionText ?? ""
-        }, set: { newVal in
-            if var sel = vm.selected, sel.id == pair.id {
-                sel.captionText = newVal
-                vm.selected = sel
-                // Also update in array for live sync
-                if let idx = vm.pairs.firstIndex(of: sel) {
-                    vm.pairs[idx] = sel
-                }
-            }
-        })
     }
 }
