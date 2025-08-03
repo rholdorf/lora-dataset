@@ -3,7 +3,9 @@ import AppKit
 
 struct ContentView: View {
     @StateObject var vm = DatasetViewModel()
-
+    @State private var imageScale: CGFloat = 1.0
+    @State private var imageOffset: CGSize = .zero
+    
     var body: some View {
         NavigationSplitView {
             VStack {
@@ -47,7 +49,7 @@ struct ContentView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text(vm.pairs[idx].imageURL.lastPathComponent)
+                        Text(vm.pairs[idx].captionURL.lastPathComponent)
                             .font(.headline)
                         Spacer()
                         Button("Recarregar Caption") {
@@ -57,12 +59,18 @@ struct ContentView: View {
 
                     HSplitView {
                         if let nsImage = NSImage(contentsOf: vm.pairs[idx].imageURL) {
-                            Image(nsImage: nsImage)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxWidth: 300, maxHeight: 300)
-                                .border(.gray)
-                                .padding()
+                            ZoomablePannableImage(
+                                image: NSImage(contentsOf: vm.pairs[idx].imageURL),
+                                scale: $imageScale,
+                                offset: $imageOffset
+                            )
+                            .frame(maxWidth: 400, maxHeight: 400)
+                            .padding()
+                            .onChange(of: imageScale) { oldValue, _ in } // se quiser reagir
+                            .onChange(of: vm.selectedID) { oldValue, _ in
+                                // Reset do offset quando muda de imagem - o ZoomablePannableImage fará o fit automático
+                                imageOffset = .zero
+                            }
                         } else {
                             Text("Não foi possível carregar a imagem.")
                                 .foregroundColor(.red)
@@ -79,7 +87,9 @@ struct ContentView: View {
                             HStack {
                                 Spacer()
                                 Button("Salvar") {
-                                    vm.saveSelected()
+                                    Task {
+                                        vm.saveSelected()
+                                    }
                                 }
                             }
                         }

@@ -187,15 +187,11 @@ class DatasetViewModel: ObservableObject {
               let idx = pairs.firstIndex(where: { $0.id == id }) else { return }
 
         do {
-            try withScopedDirectoryAccess {
-                var pair = pairs[idx]
-                if FileManager.default.fileExists(atPath: pair.captionURL.path) {
-                    pair.captionText = (try? String(contentsOf: pair.captionURL, encoding: .utf8)) ?? ""
-                    pairs[idx] = pair
-                }
+            var pair = pairs[idx]
+            if FileManager.default.fileExists(atPath: pair.captionURL.path) {
+                pair.captionText = (try? String(contentsOf: pair.captionURL, encoding: .utf8)) ?? ""
+                pairs[idx] = pair
             }
-        } catch {
-            print("Erro ao recarregar caption:", error)
         }
     }
 }
