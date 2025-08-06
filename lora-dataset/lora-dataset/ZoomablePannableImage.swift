@@ -36,44 +36,38 @@ struct ZoomablePannableImage: NSViewRepresentable {
         view.scale = scale
         view.offset = offset
         view.coordinator = context.coordinator
+        // Initialize zoom to fit on creation
+        view.resetToFit()
         return view
     }
     
     func updateNSView(_ nsView: ZoomableImageNSView, context: Context) {
-        // Marca que estamos fazendo uma atualização programática
-        nsView.isUpdatingProgrammatically = true
-        
-        // Atualiza o coordinator
+        // Atualiza imagem e reset quando diferente
         nsView.coordinator = context.coordinator
-        
-        // Só atualiza se houve mudanças reais
-        if nsView.image != image {
+        if nsView.image !== image {
             nsView.image = image
+            nsView.resetToFit()
+            // Atualiza bindings SwiftUI
+            context.coordinator.updateBindings(scale: nsView.scale, offset: nsView.offset)
         }
+        // Sincroniza scale e offset sem disparar callbacks
+        nsView.isUpdatingProgrammatically = true
         if abs(nsView.scale - scale) > 0.001 {
             nsView.scale = scale
         }
         if abs(nsView.offset.width - offset.width) > 0.1 || abs(nsView.offset.height - offset.height) > 0.1 {
             nsView.offset = offset
         }
-        
-        // Desmarca a flag
         nsView.isUpdatingProgrammatically = false
-        
-        // Força redraw apenas se necessário
-        if nsView.needsDisplay == false {
-            nsView.needsDisplay = true
-        }
+        // Força redraw
+        nsView.needsDisplay = true
     }
 }
 
 /// NSView que trata zoom com scrollWheel e pan com mouse drag.
 final class ZoomableImageNSView: NSView {
-    var image: NSImage? {
-        didSet {
-            resetToFit()
-        }
-    }
+    // Image without automatic reset; zoom resets explicitly in updateNSView
+    var image: NSImage?
     var scale: CGFloat = 1.0 {
         didSet { 
             if scale != oldValue && !isUpdatingProgrammatically {
@@ -150,7 +144,7 @@ final class ZoomableImageNSView: NSView {
         }
     }
     
-    private func resetToFit() {
+    public func resetToFit() {
         guard let img = image else { return }
         // calcula escala de "fit" baseado no tamanho da área visível (dentro da borda)
         let iw = img.size.width

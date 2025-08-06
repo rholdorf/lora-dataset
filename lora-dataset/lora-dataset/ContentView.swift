@@ -40,6 +40,7 @@ struct ContentView: View {
         } detail: {
             if let selectedID = vm.selectedID,
                let idx = vm.pairs.firstIndex(where: { $0.id == selectedID }) {
+                let imageURL = vm.pairs[idx].imageURL
                 let bindingCaption = Binding<String>(
                     get: { vm.pairs[idx].captionText },
                     set: { newText in
@@ -58,19 +59,16 @@ struct ContentView: View {
                     }
 
                     HSplitView {
-                        if let nsImage = NSImage(contentsOf: vm.pairs[idx].imageURL) {
+                        if let nsImage = NSImage(contentsOf: imageURL) {
                             ZoomablePannableImage(
-                                image: NSImage(contentsOf: vm.pairs[idx].imageURL),
+                                image: nsImage,
                                 scale: $imageScale,
                                 offset: $imageOffset
                             )
-                            .frame(maxWidth: 400, maxHeight: 400)
+                            .id(selectedID)
+                            // Fixed size to prevent resizing on zoom
+                            .frame(width: 400, height: 400)
                             .padding()
-                            .onChange(of: imageScale) { oldValue, _ in } // se quiser reagir
-                            .onChange(of: vm.selectedID) { oldValue, _ in
-                                // Reset do offset quando muda de imagem - o ZoomablePannableImage fará o fit automático
-                                imageOffset = .zero
-                            }
                         } else {
                             Text("Não foi possível carregar a imagem.")
                                 .foregroundColor(.red)
@@ -98,6 +96,12 @@ struct ContentView: View {
                     Spacer()
                 }
                 .padding()
+                // Recreate detail on selection change to sync image and caption
+                .id(selectedID)
+                .onChange(of: selectedID) { _ in
+                    imageScale = 1.0
+                    imageOffset = .zero
+                }
             } else {
                 Text("Selecione uma imagem à esquerda.")
                     .foregroundColor(.secondary)
