@@ -47,8 +47,13 @@ struct ContentView: View {
                     // Files section
                     Section("Arquivos (\(vm.pairs.count))") {
                         ForEach(vm.pairs) { pair in
-                            HStack {
+                            HStack(spacing: 4) {
                                 Text(pair.imageURL.lastPathComponent)
+                                if pair.isDirty {
+                                    Image(systemName: "circle.fill")
+                                        .font(.system(size: 6))
+                                        .foregroundColor(.orange)
+                                }
                                 Spacer()
                                 if pair.captionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                     Text("sem caption")
@@ -68,6 +73,7 @@ struct ContentView: View {
             DetailView(vm: vm, loadedImage: $loadedImage, imageScale: $imageScale, imageOffset: $imageOffset)
         }
         .frame(minWidth: 900, minHeight: 500)
+        .focusedValue(\.datasetViewModel, vm)
         .onAppear {
             selectedFileID = vm.selectedID
             loadImageForSelection()
@@ -116,17 +122,19 @@ struct FolderRowView: View {
     @ObservedObject var vm: DatasetViewModel
 
     var body: some View {
-        HStack {
-            Image(systemName: "folder.fill")
-                .foregroundColor(.accentColor)
-            Text(node.name)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            Task { @MainActor in
-                vm.navigateToFolder(node.url)
+        Button(action: {
+            vm.navigateToFolder(node.url)
+        }) {
+            HStack {
+                Image(systemName: "folder.fill")
+                    .foregroundColor(.accentColor)
+                Text(node.name)
+                    .foregroundColor(.primary)
+                Spacer()
             }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 }
 

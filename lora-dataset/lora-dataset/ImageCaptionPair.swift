@@ -13,12 +13,19 @@ struct ImageCaptionPair: Identifiable, Hashable {
     let imageURL: URL
     var captionURL: URL
     var captionText: String
+    var savedCaptionText: String
+
+    var isDirty: Bool {
+        captionText != savedCaptionText
+    }
 
     // Como todos os campos usados já são Hashable, o compilador sintetiza Hashable/Equatable.
     // Se quiser garantir que só o `id` determine identidade na seleção, pode customizar:
 
     static func == (lhs: ImageCaptionPair, rhs: ImageCaptionPair) -> Bool {
         return lhs.id == rhs.id
+            && lhs.captionText == rhs.captionText
+            && lhs.savedCaptionText == rhs.savedCaptionText
     }
 
     func hash(into hasher: inout Hasher) {

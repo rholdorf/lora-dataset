@@ -15,7 +15,7 @@ None
 - Decimal phases (e.g., 2.1): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: Directory Tree Navigation** - Sidebar with expandable folder tree for browsing directories (Complete)
-- [ ] **Phase 2: Save Enhancements** - Cmd+S shortcut, File menu integration, dirty indicator
+- [x] **Phase 2: Save Enhancements** - Cmd+S shortcut, File menu integration, dirty indicator (Complete)
 - [ ] **Phase 3: Security & Persistence** - Handle security-scoped bookmarks when navigating to new directories
 - [ ] **Phase 4: Polish** - Native macOS refinements and edge cases
 
@@ -36,10 +36,10 @@ Plans:
 **Goal**: Add Cmd+S keyboard shortcut, File → Save menu item, and visual dirty indicator
 **Depends on**: Phase 1
 **Research**: Unlikely (established SwiftUI patterns)
-**Plans**: TBD
+**Plans**: 1
 
 Plans:
-- [ ] 02-01: TBD
+- [x] 02-01: Save shortcut, menu, and dirty indicator
 
 ### Phase 3: Security & Persistence
 **Goal**: Handle security-scoped bookmarks when user navigates to directories outside original selection
@@ -68,6 +68,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Directory Tree Navigation | 2/2 | Complete | 2025-12-21 |
-| 2. Save Enhancements | 0/? | Not started | - |
+| 2. Save Enhancements | 1/1 | Complete | 2025-12-21 |
 | 3. Security & Persistence | 0/? | Not started | - |
 | 4. Polish | 0/? | Not started | - |

@@ -28,6 +28,10 @@ class DatasetViewModel: ObservableObject {
         return pairs.first { $0.id == id }
     }
 
+    var selectedIsDirty: Bool {
+        selectedPair?.isDirty ?? false
+    }
+
     init() {
         Task {
             await restorePreviousDirectoryIfAvailable()
@@ -207,7 +211,12 @@ class DatasetViewModel: ObservableObject {
                 if fm.fileExists(atPath: captionURL.path) {
                     captionText = (try? String(contentsOf: captionURL, encoding: .utf8)) ?? ""
                 }
-                let pair = ImageCaptionPair(imageURL: file, captionURL: captionURL, captionText: captionText)
+                let pair = ImageCaptionPair(
+                    imageURL: file,
+                    captionURL: captionURL,
+                    captionText: captionText,
+                    savedCaptionText: captionText
+                )
                 newPairs.append(pair)
             }
         }
@@ -252,6 +261,8 @@ class DatasetViewModel: ObservableObject {
                     print("[saveSelected] salvo com sucesso em \(captionURL.path)")
                 }
             }
+            // Update savedCaptionText after successful save
+            pairs[idx].savedCaptionText = captionText
         } catch {
             print("[saveSelected] erro ao salvar caption:", error)
         }
@@ -263,7 +274,9 @@ class DatasetViewModel: ObservableObject {
 
         var pair = pairs[idx]
         if FileManager.default.fileExists(atPath: pair.captionURL.path) {
-            pair.captionText = (try? String(contentsOf: pair.captionURL, encoding: .utf8)) ?? ""
+            let reloaded = (try? String(contentsOf: pair.captionURL, encoding: .utf8)) ?? ""
+            pair.captionText = reloaded
+            pair.savedCaptionText = reloaded
             pairs[idx] = pair
         }
     }
