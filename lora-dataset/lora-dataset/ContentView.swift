@@ -23,7 +23,7 @@ struct ContentView: View {
 
                 if let dir = vm.directoryURL {
                     Text(dir.path)
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                         .truncationMode(.head)
@@ -114,52 +114,62 @@ struct ContentView: View {
     }
 }
 
-// Recursive folder tree view with DisclosureGroup
+// Recursive folder tree view with manual disclosure (not DisclosureGroup)
+// This separates the disclosure toggle from folder navigation
 struct FolderTreeView: View {
     let nodes: [FileNode]
     @ObservedObject var vm: DatasetViewModel
 
     var body: some View {
         ForEach(nodes) { node in
-            if let children = node.children, !children.isEmpty {
-                // Folder with children - use DisclosureGroup with binding
-                DisclosureGroup(
-                    isExpanded: Binding(
-                        get: { vm.isExpanded(path: node.url.path) },
-                        set: { _ in vm.toggleExpanded(path: node.url.path) }
-                    )
-                ) {
-                    FolderTreeView(nodes: children, vm: vm)
-                } label: {
-                    FolderRowView(node: node, vm: vm)
-                }
-            } else {
-                // Leaf folder (no children) - just show the row
-                FolderRowView(node: node, vm: vm)
+            FolderNodeView(node: node, vm: vm)
+
+            // Children (if expanded)
+            if let children = node.children, !children.isEmpty, vm.isExpanded(path: node.url.path) {
+                FolderTreeView(nodes: children, vm: vm)
+                    .padding(.leading, 16)
             }
         }
     }
 }
 
-// Separate view for folder rows to keep main view clean
-struct FolderRowView: View {
+// Individual folder node - separate view to ensure proper state updates
+struct FolderNodeView: View {
     let node: FileNode
     @ObservedObject var vm: DatasetViewModel
 
+    private var hasChildren: Bool {
+        node.children?.isEmpty == false
+    }
+
+    private var isExpanded: Bool {
+        vm.isExpanded(path: node.url.path)
+    }
+
     var body: some View {
-        Button(action: {
-            vm.navigateToFolder(node.url)
-        }) {
-            HStack {
-                Image(systemName: "folder.fill")
-                    .foregroundColor(.accentColor)
-                Text(node.name)
-                    .foregroundColor(.primary)
-                Spacer()
+        HStack(spacing: 4) {
+            // Disclosure chevron (only for folders with children)
+            if hasChildren {
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12, height: 20)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        vm.toggleExpanded(path: node.url.path)
+                    }
+            } else {
+                Color.clear.frame(width: 12)
             }
-            .contentShape(Rectangle())
+
+            // Folder label - navigation via tap gesture on the whole area
+            Label(node.name, systemImage: "folder")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    vm.navigateToFolder(node.url)
+                }
         }
-        .buttonStyle(.plain)
     }
 }
 

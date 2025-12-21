@@ -17,7 +17,7 @@ None
 - [x] **Phase 1: Directory Tree Navigation** - Sidebar with expandable folder tree for browsing directories (Complete)
 - [x] **Phase 2: Save Enhancements** - Cmd+S shortcut, File menu integration, dirty indicator (Complete)
 - [x] **Phase 3: Security & Persistence** - Expansion state persistence with DisclosureGroup + UserDefaults (Complete)
-- [ ] **Phase 4: Polish** - Native macOS refinements and edge cases
+- [x] **Phase 4: Polish** - Native macOS refinements and edge cases (Complete)
 
 ## Phase Details
 
@@ -54,10 +54,10 @@ Plans:
 **Goal**: Refine UI/UX to feel like a native Apple application
 **Depends on**: Phases 2, 3
 **Research**: Unlikely (internal patterns)
-**Plans**: TBD
+**Plans**: 1
 
 Plans:
-- [ ] 04-01: TBD
+- [x] 04-01: Native folder tree styling with manual disclosure
 
 ## Progress
 
@@ -69,4 +69,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Directory Tree Navigation | 2/2 | Complete | 2025-12-21 |
 | 2. Save Enhancements | 1/1 | Complete | 2025-12-21 |
 | 3. Security & Persistence | 1/1 | Complete | 2025-12-21 |
-| 4. Polish | 0/? | Not started | - |
+| 4. Polish | 1/1 | Complete | 2025-12-21 |
+
+**Milestone v1.1 Complete!**

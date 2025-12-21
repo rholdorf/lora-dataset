@@ -18,19 +18,19 @@
 
 ## Current Position
 
-Phase: 3 of 4 (Security & Persistence) - COMPLETE
+Phase: 4 of 4 (Polish) - COMPLETE
 Plan: 1 of 1 in current phase
-Status: Phase complete
-Last activity: 2025-12-21 - Completed 03-01-PLAN.md
+Status: Milestone complete
+Last activity: 2025-12-21 - Completed 04-01-PLAN.md
 
-Progress: ████████░░ 75%
+Progress: ██████████ 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 59 min
-- Total execution time: 3h 55m
+- Total plans completed: 5
+- Average duration: 51 min
+- Total execution time: 4h 15m
 
 **By Phase:**
 
@@ -39,10 +39,11 @@ Progress: ████████░░ 75%
 | 1 | 2 | 1h 29m | 45 min |
 | 2 | 1 | 11 min | 11 min |
 | 3 | 1 | 2h 15m | 2h 15m |
+| 4 | 1 | 20 min | 20 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (3 min), 01-02 (1h 26m), 02-01 (11 min), 03-01 (2h 15m)
-- Trend: Longer plan due to checkpoint verification wait time
+- Last 5 plans: 01-01 (3 min), 01-02 (1h 26m), 02-01 (11 min), 03-01 (2h 15m), 04-01 (20 min)
+- Trend: Faster execution with bug fixes during polish
 
 *Updated after each plan completion*
 
@@ -62,6 +63,9 @@ Progress: ████████░░ 75%
 | 03-01 | Path strings for UserDefaults | url.path strings for persistence compatibility |
 | 03-01 | Set<String> for expansion state | O(1) lookup for isExpanded() checks |
 | 03-01 | Recursive DisclosureGroup | OutlineGroup doesn't expose expansion bindings |
+| 04-01 | Manual disclosure over DisclosureGroup | DisclosureGroup intercepts label clicks, preventing navigation |
+| 04-01 | onTapGesture over Button in List | Button hit-testing unreliable after List re-renders |
+| 04-01 | Separate FolderNodeView | Each node needs own View for proper state lifecycle |
 
 ### Deferred Issues
 
@@ -81,5 +85,5 @@ Drift notes: None
 ## Session Continuity
 
 Last session: 2025-12-21
-Stopped at: Phase 3 complete, ready for Phase 4
+Stopped at: Milestone v1.1 complete
 Resume file: None
