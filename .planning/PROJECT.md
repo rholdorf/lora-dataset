@@ -1,31 +1,39 @@
 # LoRA Dataset Browser
 
-## Current State (Updated: 2025-12-20)
+## Current State (Updated: 2025-12-21)
 
-**Shipped:** v1.0 (working prototype)
+**Shipped:** v1.1 Finder Navigation (2025-12-21)
 **Status:** Internal use
 **Users:** Solo developer (Rui)
-**Feedback:** Functional but lacks directory navigation flexibility
+**Feedback:** Gathering feedback on v1.1
 
 **Codebase:**
-- ~640 lines of Swift
+- ~1,054 lines of Swift
 - SwiftUI + AppKit (NSViewRepresentable for zoom/pan)
 - MVVM architecture with @MainActor ViewModel
 - Security-scoped bookmarks for sandbox compliance
 
 **Current Capabilities:**
-- Select a single directory containing image/caption pairs
+- Sidebar folder tree with expand/collapse navigation
+- Navigate directories without re-selecting via NSOpenPanel
 - View images with pan and zoom (custom NSView)
 - Edit caption text in a TextEditor
-- Save captions with button click
+- Cmd+S keyboard shortcut and File → Save menu
+- Orange dirty indicator for unsaved changes
+- Folder expansion state persists between app launches
 - Auto-restore last directory on launch
 
 **Known Issues:**
-- No way to navigate between directories without re-selecting
-- No visual indicator when caption has unsaved changes
-- Save requires button click, not keyboard shortcut
+- None currently identified
 
-## v1.1 Goals
+## Next Milestone Goals
+
+_No active milestone planned. Gathering feedback on v1.1._
+
+---
+
+<details>
+<summary>v1.1 Goals (Archived)</summary>
 
 **Vision:** Transform the app into a Finder-like dataset browser with native macOS polish.
 
@@ -44,29 +52,12 @@
 - Native macOS look and feel — should feel Apple-made
 
 **Success Criteria:**
-- [ ] Can browse any folder hierarchy from sidebar tree
-- [ ] Visual indicator shows when caption is modified but unsaved
-- [ ] Cmd+S saves the current caption
-- [ ] App looks and feels like a native macOS application
+- [x] Can browse any folder hierarchy from sidebar tree
+- [x] Visual indicator shows when caption is modified but unsaved
+- [x] Cmd+S saves the current caption
+- [x] App looks and feels like a native macOS application
 
-**Not Building (this version):**
-- No batch operations (bulk editing, renaming, processing)
-- No image editing (crop, rotate, resize)
-- No AI/auto-captioning — purely manual editing
-
-## Constraints
-
-- **Platform**: macOS 14+ only — can use latest SwiftUI APIs
-- **Dependencies**: Pure SwiftUI/AppKit — no external packages
-- **Design**: Must look like a native Apple app (follow HIG)
-
-## Open Questions
-
-- [ ] How to handle security-scoped bookmarks when navigating to new directories?
-- [ ] Should folder tree persist expansion state between sessions?
-- [ ] Root folder for navigation — user-selected or home directory?
-
----
+</details>
 
 <details>
 <summary>Original Vision (v1.0 - Archived)</summary>
