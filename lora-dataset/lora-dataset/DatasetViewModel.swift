@@ -11,6 +11,9 @@ class DatasetViewModel: ObservableObject {
     // Folder tree - root of selected directory
     @Published var folderTree: [FileNode] = []
 
+    // Expansion state for folder tree (using paths for persistence)
+    @Published var expandedPaths: Set<String> = []
+
     // The root directory (stays fixed when navigating subdirs)
     private var rootDirectoryURL: URL? = nil
 
@@ -33,6 +36,11 @@ class DatasetViewModel: ObservableObject {
     }
 
     init() {
+        // Restore expansion state from UserDefaults
+        if let savedPaths = UserDefaults.standard.array(forKey: "expandedFolderPaths") as? [String] {
+            expandedPaths = Set(savedPaths)
+        }
+
         Task {
             await restorePreviousDirectoryIfAvailable()
         }
@@ -279,5 +287,25 @@ class DatasetViewModel: ObservableObject {
             pair.savedCaptionText = reloaded
             pairs[idx] = pair
         }
+    }
+
+    // MARK: - Folder Expansion State
+
+    func toggleExpanded(path: String) {
+        if expandedPaths.contains(path) {
+            expandedPaths.remove(path)
+        } else {
+            expandedPaths.insert(path)
+        }
+        persistExpandedPaths()
+    }
+
+    func isExpanded(path: String) -> Bool {
+        return expandedPaths.contains(path)
+    }
+
+    private func persistExpandedPaths() {
+        let pathsArray = Array(expandedPaths)
+        UserDefaults.standard.set(pathsArray, forKey: "expandedFolderPaths")
     }
 }

@@ -35,12 +35,10 @@ struct ContentView: View {
 
                 // Sidebar with folders and files
                 List(selection: $selectedFileID) {
-                    // Folders section - using List with children for tree
+                    // Folders section - using recursive DisclosureGroup for expansion control
                     if !vm.folderTree.isEmpty {
                         Section("Pastas") {
-                            OutlineGroup(vm.folderTree, children: \.children) { node in
-                                FolderRowView(node: node, vm: vm)
-                            }
+                            FolderTreeView(nodes: vm.folderTree, vm: vm)
                         }
                     }
 
@@ -113,6 +111,33 @@ struct ContentView: View {
         }
 
         loadedImage = NSImage(contentsOf: pair.imageURL)
+    }
+}
+
+// Recursive folder tree view with DisclosureGroup
+struct FolderTreeView: View {
+    let nodes: [FileNode]
+    @ObservedObject var vm: DatasetViewModel
+
+    var body: some View {
+        ForEach(nodes) { node in
+            if let children = node.children, !children.isEmpty {
+                // Folder with children - use DisclosureGroup with binding
+                DisclosureGroup(
+                    isExpanded: Binding(
+                        get: { vm.isExpanded(path: node.url.path) },
+                        set: { _ in vm.toggleExpanded(path: node.url.path) }
+                    )
+                ) {
+                    FolderTreeView(nodes: children, vm: vm)
+                } label: {
+                    FolderRowView(node: node, vm: vm)
+                }
+            } else {
+                // Leaf folder (no children) - just show the row
+                FolderRowView(node: node, vm: vm)
+            }
+        }
     }
 }
 
