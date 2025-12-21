@@ -8,6 +8,10 @@ class DatasetViewModel: ObservableObject {
     @Published var selectedID: UUID? = nil
     @Published var directoryURL: URL? = nil
 
+    // Folder tree navigation
+    @Published var folderTree: [FileNode] = []
+    @Published var selectedFolderID: UUID? = nil
+
     // URL resolvida com escopo de segurança (security-scoped)
     private var securedDirectoryURL: URL? = nil
 
@@ -17,6 +21,26 @@ class DatasetViewModel: ObservableObject {
     var selectedPair: ImageCaptionPair? {
         guard let id = selectedID else { return nil }
         return pairs.first { $0.id == id }
+    }
+
+    var selectedFolderURL: URL? {
+        guard let id = selectedFolderID else { return nil }
+        return findNodeByID(id, in: folderTree)?.url
+    }
+
+    // Helper to find a node by ID in the tree
+    private func findNodeByID(_ id: UUID, in nodes: [FileNode]) -> FileNode? {
+        for node in nodes {
+            if node.id == id {
+                return node
+            }
+            if let children = node.children {
+                if let found = findNodeByID(id, in: children) {
+                    return found
+                }
+            }
+        }
+        return nil
     }
 
     init() {
@@ -152,6 +176,63 @@ class DatasetViewModel: ObservableObject {
         newPairs.sort { $0.imageURL.lastPathComponent < $1.imageURL.lastPathComponent }
         pairs = newPairs
         selectedID = pairs.first?.id
+
+        // Build folder tree for navigation
+        folderTree = buildFolderTree(from: folder, depth: 1)
+    }
+
+    // Build folder tree structure recursively
+    func buildFolderTree(from url: URL, depth: Int = 1) -> [FileNode] {
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(
+            at: url,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else { return [] }
+
+        return contents.compactMap { itemURL in
+            let isDir = (try? itemURL.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+            if isDir {
+                // Only load children if depth allows (lazy loading)
+                let children: [FileNode]? = depth > 0
+                    ? buildFolderTree(from: itemURL, depth: depth - 1)
+                    : []  // Empty array = folder, will load on expand
+                return FileNode(url: itemURL, children: children)
+            }
+            return nil  // Skip files - they go in detail view
+        }.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
+    }
+
+    // Load children for a node (lazy loading on expand)
+    func loadChildrenForNode(nodeID: UUID) {
+        guard let node = findNodeByID(nodeID, in: folderTree) else { return }
+
+        // Load children with depth 1
+        let children = buildFolderTree(from: node.url, depth: 1)
+
+        // Update the node in the tree
+        updateNodeChildren(nodeID: nodeID, children: children, in: &folderTree)
+    }
+
+    // Helper to update a node's children in the tree
+    private func updateNodeChildren(nodeID: UUID, children: [FileNode], in nodes: inout [FileNode]) {
+        for i in 0..<nodes.count {
+            if nodes[i].id == nodeID {
+                nodes[i].children = children
+                return
+            }
+            if var nodeChildren = nodes[i].children {
+                updateNodeChildren(nodeID: nodeID, children: children, in: &nodeChildren)
+                nodes[i].children = nodeChildren
+            }
+        }
+    }
+
+    // Select a folder and load its pairs
+    func selectFolder(_ url: URL) async {
+        directoryURL = url
+        await scanDirectory(url)
+        // Note: We keep the same securedDirectoryURL since the parent bookmark covers subdirectories
     }
 
     func saveSelected() {
