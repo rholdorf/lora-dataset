@@ -6,121 +6,201 @@ struct ContentView: View {
     @State private var imageScale: CGFloat = 1.0
     @State private var imageOffset: CGSize = .zero
     @State private var loadedImage: NSImage? = nil
+    @State private var selectedFileID: UUID? = nil
 
     var body: some View {
         NavigationSplitView {
-            VStack {
+            VStack(spacing: 0) {
+                // Header with folder picker and current path
                 HStack {
                     Button("Escolher Pasta") {
                         Task { await vm.chooseDirectory() }
                     }
-                    if let dir = vm.directoryURL {
-                        Text(dir.lastPathComponent)
-                            .font(.caption)
-                            .lineLimit(1)
-                    }
                     Spacer()
                 }
                 .padding(.horizontal)
+                .padding(.vertical, 8)
 
-                List(selection: $vm.selectedID) {
-                    ForEach(vm.pairs) { pair in
-                        HStack {
-                            Text(pair.imageURL.lastPathComponent)
-                            Spacer()
-                            if pair.captionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Text("sem caption")
-                                    .italic()
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .tag(pair.id)
-                    }
+                if let dir = vm.directoryURL {
+                    Text(dir.path)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                        .padding(.horizontal)
+                        .padding(.bottom, 4)
                 }
-            }
-            .frame(minWidth: 250)
-        } detail: {
-            VStack(alignment: .leading, spacing: 12) {
-                if let selectedID = vm.selectedID,
-                   let idx = vm.pairs.firstIndex(where: { $0.id == selectedID }) {
-                    let imageURL = vm.pairs[idx].imageURL
-                    // Caption header
-                    HStack {
-                        Text(vm.pairs[idx].captionURL.lastPathComponent)
-                            .font(.headline)
-                        Spacer()
-                        Button("Recarregar Caption") {
-                            vm.reloadCaptionForSelected()
-                        }
-                    }
-                    
-                    // Image and caption editor
-                    HSplitView {
-                        Group {
-                            if let nsImage = loadedImage {
-                                ZoomablePannableImage(
-                                    image: nsImage,
-                                    scale: $imageScale,
-                                    offset: $imageOffset
-                                )
-                                .frame(width: 400, height: 400)
-                                .clipped()
-                            } else {
-                                Text("Não foi possível carregar a imagem.")
-                                    .foregroundColor(.red)
+
+                Divider()
+
+                // Sidebar with folders and files
+                List(selection: $selectedFileID) {
+                    // Folders section - using List with children for tree
+                    if !vm.folderTree.isEmpty {
+                        Section("Pastas") {
+                            OutlineGroup(vm.folderTree, children: \.children) { node in
+                                FolderRowView(node: node, vm: vm)
                             }
                         }
-                        .frame(width: 400, height: 400)
-                        .padding()
-                        
-                        VStack(alignment: .leading) {
-                            Text("Caption / descrição:")
-                                .font(.subheadline)
-                            TextEditor(text: Binding(
-                                get: { vm.pairs[idx].captionText },
-                                set: { vm.pairs[idx].captionText = $0 }
-                            ))
-                            .font(.body)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .stroke(Color.secondary.opacity(0.5))
-                            )
-                            .frame(minHeight: 200)
+                    }
 
+                    // Files section
+                    Section("Arquivos (\(vm.pairs.count))") {
+                        ForEach(vm.pairs) { pair in
                             HStack {
+                                Text(pair.imageURL.lastPathComponent)
                                 Spacer()
-                                Button("Salvar") {
-                                    Task { vm.saveSelected() }
+                                if pair.captionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    Text("sem caption")
+                                        .font(.caption)
+                                        .italic()
+                                        .foregroundColor(.secondary)
                                 }
                             }
+                            .tag(pair.id)
                         }
-                        .padding()
                     }
-                } else {
-                    Text("Selecione uma imagem à esquerda.")
-                        .foregroundColor(.secondary)
-                        .italic()
                 }
-                Spacer()
+                .listStyle(.sidebar)
             }
-            .padding()
+            .frame(minWidth: 280)
+        } detail: {
+            DetailView(vm: vm, loadedImage: $loadedImage, imageScale: $imageScale, imageOffset: $imageOffset)
         }
         .frame(minWidth: 900, minHeight: 500)
         .onAppear {
+            selectedFileID = vm.selectedID
+            loadImageForSelection()
+        }
+        .onChange(of: selectedFileID) {
+            // Sync local selection to ViewModel
+            Task { @MainActor in
+                vm.selectedID = selectedFileID
+                loadImageForSelection()
+            }
+        }
+        .onChange(of: vm.selectedID) {
+            // Sync ViewModel selection to local (e.g., after folder navigation)
+            Task { @MainActor in
+                if selectedFileID != vm.selectedID {
+                    selectedFileID = vm.selectedID
+                }
+            }
+        }
+        .onChange(of: vm.pairs) {
+            // When pairs change, sync selection
+            Task { @MainActor in
+                selectedFileID = vm.selectedID
+                loadImageForSelection()
+            }
+        }
+    }
+
+    private func loadImageForSelection() {
+        imageScale = 1.0
+        imageOffset = .zero
+
+        guard let id = selectedFileID,
+              let pair = vm.pairs.first(where: { $0.id == id }) else {
+            loadedImage = nil
+            return
+        }
+
+        loadedImage = NSImage(contentsOf: pair.imageURL)
+    }
+}
+
+// Separate view for folder rows to keep main view clean
+struct FolderRowView: View {
+    let node: FileNode
+    @ObservedObject var vm: DatasetViewModel
+
+    var body: some View {
+        HStack {
+            Image(systemName: "folder.fill")
+                .foregroundColor(.accentColor)
+            Text(node.name)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            Task { @MainActor in
+                vm.navigateToFolder(node.url)
+            }
+        }
+    }
+}
+
+// Detail view for image and caption editing
+struct DetailView: View {
+    @ObservedObject var vm: DatasetViewModel
+    @Binding var loadedImage: NSImage?
+    @Binding var imageScale: CGFloat
+    @Binding var imageOffset: CGSize
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
             if let selectedID = vm.selectedID,
                let idx = vm.pairs.firstIndex(where: { $0.id == selectedID }) {
-                loadedImage = NSImage(contentsOf: vm.pairs[idx].imageURL)
-            }
-        }
-        .onChange(of: vm.selectedID) { newID in
-            if let idx = vm.pairs.firstIndex(where: { $0.id == newID }) {
-                loadedImage = NSImage(contentsOf: vm.pairs[idx].imageURL)
+                // Caption header
+                HStack {
+                    Text(vm.pairs[idx].captionURL.lastPathComponent)
+                        .font(.headline)
+                    Spacer()
+                    Button("Recarregar Caption") {
+                        vm.reloadCaptionForSelected()
+                    }
+                }
+
+                // Image and caption editor
+                HSplitView {
+                    Group {
+                        if let nsImage = loadedImage {
+                            ZoomablePannableImage(
+                                image: nsImage,
+                                scale: $imageScale,
+                                offset: $imageOffset
+                            )
+                            .frame(width: 400, height: 400)
+                            .clipped()
+                        } else {
+                            Text("Não foi possível carregar a imagem.")
+                                .foregroundColor(.red)
+                        }
+                    }
+                    .frame(width: 400, height: 400)
+                    .padding()
+
+                    VStack(alignment: .leading) {
+                        Text("Caption / descrição:")
+                            .font(.subheadline)
+                        TextEditor(text: Binding(
+                            get: { vm.pairs[idx].captionText },
+                            set: { vm.pairs[idx].captionText = $0 }
+                        ))
+                        .font(.body)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.secondary.opacity(0.5))
+                        )
+                        .frame(minHeight: 200)
+
+                        HStack {
+                            Spacer()
+                            Button("Salvar") {
+                                vm.saveSelected()
+                            }
+                        }
+                    }
+                    .padding()
+                }
             } else {
-                loadedImage = nil
+                Text("Selecione uma imagem à esquerda.")
+                    .foregroundColor(.secondary)
+                    .italic()
             }
-            imageScale = 1.0
-            imageOffset = .zero
+            Spacer()
         }
+        .padding()
     }
 }
 

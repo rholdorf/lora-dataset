@@ -8,12 +8,17 @@ class DatasetViewModel: ObservableObject {
     @Published var selectedID: UUID? = nil
     @Published var directoryURL: URL? = nil
 
-    // Folder tree navigation
+    // Folder tree - root of selected directory
     @Published var folderTree: [FileNode] = []
-    @Published var selectedFolderID: UUID? = nil
+
+    // The root directory (stays fixed when navigating subdirs)
+    private var rootDirectoryURL: URL? = nil
 
     // URL resolvida com escopo de segurança (security-scoped)
     private var securedDirectoryURL: URL? = nil
+
+    // Track if security-scoped access is active
+    private var isAccessingSecurityScope = false
 
     let supportedImageExtensions = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
     let supportedCaptionExtensions = ["txt", "caption"]
@@ -23,29 +28,22 @@ class DatasetViewModel: ObservableObject {
         return pairs.first { $0.id == id }
     }
 
-    var selectedFolderURL: URL? {
-        guard let id = selectedFolderID else { return nil }
-        return findNodeByID(id, in: folderTree)?.url
-    }
-
-    // Helper to find a node by ID in the tree
-    private func findNodeByID(_ id: UUID, in nodes: [FileNode]) -> FileNode? {
-        for node in nodes {
-            if node.id == id {
-                return node
-            }
-            if let children = node.children {
-                if let found = findNodeByID(id, in: children) {
-                    return found
-                }
-            }
-        }
-        return nil
-    }
-
     init() {
         Task {
             await restorePreviousDirectoryIfAvailable()
+        }
+    }
+
+    // Start security-scoped access and keep it active
+    private func startSecurityScopedAccess() {
+        // Stop any previous access first
+        if isAccessingSecurityScope {
+            securedDirectoryURL?.stopAccessingSecurityScopedResource()
+            isAccessingSecurityScope = false
+        }
+        // Start new access
+        if let secured = securedDirectoryURL {
+            isAccessingSecurityScope = secured.startAccessingSecurityScopedResource()
         }
     }
 
@@ -56,6 +54,8 @@ class DatasetViewModel: ObservableObject {
         panel.allowsMultipleSelection = false
         panel.title = "Selecione o diretório do dataset"
         if panel.runModal() == .OK, let url = panel.url {
+            // Save as both root and current directory
+            rootDirectoryURL = url
             directoryURL = url
 
             // Criar bookmark com escopo e persistir
@@ -86,20 +86,24 @@ class DatasetViewModel: ObservableObject {
                 )
                 securedDirectoryURL = resolved
                 if isStale {
-                    // Se estiver stale, poderia recriar o bookmark mais adiante
                     print("Bookmark estava stale; considerar recriar.")
                 }
             } catch {
                 print("Erro resolvendo bookmark para uso imediato:", error)
-                // fallback simples
                 securedDirectoryURL = url
             }
 
-            await scanDirectory(url)
+            // Start and keep security-scoped access active
+            startSecurityScopedAccess()
+
+            // Build folder tree from root
+            folderTree = buildFolderTree(from: url)
+
+            // Scan files in current directory
+            scanCurrentDirectory()
         }
     }
 
-    // Restaura pasta anterior se houver bookmark salvo
     func restorePreviousDirectoryIfAvailable() async {
         if let bookmarkData = UserDefaults.standard.data(forKey: "lastDatasetFolderBookmark") {
             var isStale = false
@@ -113,33 +117,68 @@ class DatasetViewModel: ObservableObject {
                 if isStale {
                     print("Bookmark restaurado está stale.")
                 }
+                rootDirectoryURL = resolved
                 directoryURL = resolved
                 securedDirectoryURL = resolved
-                await scanDirectory(resolved)
+
+                // Start and keep security-scoped access active
+                startSecurityScopedAccess()
+
+                // Build folder tree from root
+                folderTree = buildFolderTree(from: resolved)
+
+                // Scan files
+                scanCurrentDirectory()
             } catch {
                 print("Erro resolvendo bookmark salvo:", error)
             }
         }
     }
 
-    // Helper que ativa o escopo antes de executar e desativa depois
-    private func withScopedDirectoryAccess<T>(_ work: () throws -> T) rethrows -> T {
-        var didStart = false
-        if let secured = securedDirectoryURL, secured.startAccessingSecurityScopedResource() {
-            didStart = true
-        }
-        defer {
-            if didStart {
-                securedDirectoryURL?.stopAccessingSecurityScopedResource()
-            }
-        }
-        return try work()
+    // Build complete folder tree (no lazy loading)
+    // Note: Security-scoped access must be active before calling this
+    private func buildFolderTree(from url: URL) -> [FileNode] {
+        return buildFolderTreeRecursive(from: url, maxDepth: 10)
     }
 
-    func scanDirectory(_ folder: URL) async {
-        pairs = []
+    private func buildFolderTreeRecursive(from url: URL, maxDepth: Int) -> [FileNode] {
+        guard maxDepth > 0 else { return [] }
+
         let fm = FileManager.default
-        guard let contents = try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
+        guard let contents = try? fm.contentsOfDirectory(
+            at: url,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else { return [] }
+
+        return contents.compactMap { itemURL in
+            let isDir = (try? itemURL.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+            if isDir {
+                let children = buildFolderTreeRecursive(from: itemURL, maxDepth: maxDepth - 1)
+                return FileNode(url: itemURL, children: children)
+            }
+            return nil
+        }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    // Navigate to a folder (called when user clicks folder in tree)
+    func navigateToFolder(_ url: URL) {
+        directoryURL = url
+        scanCurrentDirectory()
+    }
+
+    // Scan current directory for image/caption pairs
+    // Note: Security-scoped access must be active before calling this
+    private func scanCurrentDirectory() {
+        guard let folder = directoryURL else { return }
+
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(
+            at: folder,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else {
+            pairs = []
             return
         }
 
@@ -165,7 +204,7 @@ class DatasetViewModel: ObservableObject {
                 }
 
                 var captionText = ""
-                if FileManager.default.fileExists(atPath: captionURL.path) {
+                if fm.fileExists(atPath: captionURL.path) {
                     captionText = (try? String(contentsOf: captionURL, encoding: .utf8)) ?? ""
                 }
                 let pair = ImageCaptionPair(imageURL: file, captionURL: captionURL, captionText: captionText)
@@ -173,66 +212,23 @@ class DatasetViewModel: ObservableObject {
             }
         }
 
-        newPairs.sort { $0.imageURL.lastPathComponent < $1.imageURL.lastPathComponent }
+        newPairs.sort { $0.imageURL.lastPathComponent.localizedCaseInsensitiveCompare($1.imageURL.lastPathComponent) == .orderedAscending }
         pairs = newPairs
         selectedID = pairs.first?.id
-
-        // Build folder tree for navigation
-        folderTree = buildFolderTree(from: folder, depth: 1)
     }
 
-    // Build folder tree structure recursively
-    func buildFolderTree(from url: URL, depth: Int = 1) -> [FileNode] {
-        let fm = FileManager.default
-        guard let contents = try? fm.contentsOfDirectory(
-            at: url,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else { return [] }
-
-        return contents.compactMap { itemURL in
-            let isDir = (try? itemURL.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
-            if isDir {
-                // Only load children if depth allows (lazy loading)
-                let children: [FileNode]? = depth > 0
-                    ? buildFolderTree(from: itemURL, depth: depth - 1)
-                    : []  // Empty array = folder, will load on expand
-                return FileNode(url: itemURL, children: children)
-            }
-            return nil  // Skip files - they go in detail view
-        }.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
-    }
-
-    // Load children for a node (lazy loading on expand)
-    func loadChildrenForNode(nodeID: UUID) {
-        guard let node = findNodeByID(nodeID, in: folderTree) else { return }
-
-        // Load children with depth 1
-        let children = buildFolderTree(from: node.url, depth: 1)
-
-        // Update the node in the tree
-        updateNodeChildren(nodeID: nodeID, children: children, in: &folderTree)
-    }
-
-    // Helper to update a node's children in the tree
-    private func updateNodeChildren(nodeID: UUID, children: [FileNode], in nodes: inout [FileNode]) {
-        for i in 0..<nodes.count {
-            if nodes[i].id == nodeID {
-                nodes[i].children = children
-                return
-            }
-            if var nodeChildren = nodes[i].children {
-                updateNodeChildren(nodeID: nodeID, children: children, in: &nodeChildren)
-                nodes[i].children = nodeChildren
+    // Helper que ativa o escopo antes de executar e desativa depois
+    private func withScopedDirectoryAccess<T>(_ work: () throws -> T) rethrows -> T {
+        var didStart = false
+        if let secured = securedDirectoryURL, secured.startAccessingSecurityScopedResource() {
+            didStart = true
+        }
+        defer {
+            if didStart {
+                securedDirectoryURL?.stopAccessingSecurityScopedResource()
             }
         }
-    }
-
-    // Select a folder and load its pairs
-    func selectFolder(_ url: URL) async {
-        directoryURL = url
-        await scanDirectory(url)
-        // Note: We keep the same securedDirectoryURL since the parent bookmark covers subdirectories
+        return try work()
     }
 
     func saveSelected() {
@@ -245,12 +241,10 @@ class DatasetViewModel: ObservableObject {
 
         do {
             try withScopedDirectoryAccess {
-                // Garante diretório
                 let folder = captionURL.deletingLastPathComponent()
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                 try captionText.write(to: captionURL, atomically: true, encoding: .utf8)
 
-                // Verificação
                 let reloaded = try String(contentsOf: captionURL, encoding: .utf8)
                 if reloaded != captionText {
                     print("[saveSelected] aviso: conteúdo lido de volta difere do escrito.")
@@ -267,12 +261,10 @@ class DatasetViewModel: ObservableObject {
         guard let id = selectedID,
               let idx = pairs.firstIndex(where: { $0.id == id }) else { return }
 
-        do {
-            var pair = pairs[idx]
-            if FileManager.default.fileExists(atPath: pair.captionURL.path) {
-                pair.captionText = (try? String(contentsOf: pair.captionURL, encoding: .utf8)) ?? ""
-                pairs[idx] = pair
-            }
+        var pair = pairs[idx]
+        if FileManager.default.fileExists(atPath: pair.captionURL.path) {
+            pair.captionText = (try? String(contentsOf: pair.captionURL, encoding: .utf8)) ?? ""
+            pairs[idx] = pair
         }
     }
 }
