@@ -5,7 +5,14 @@ import AppKit
 @MainActor
 class DatasetViewModel: ObservableObject {
     @Published var pairs: [ImageCaptionPair] = []
-    @Published var selectedID: UUID? = nil
+    @Published var selectedID: UUID? = nil {
+        didSet {
+            // Persist selected image path when selection changes
+            if let pair = selectedPair {
+                UserDefaults.standard.set(pair.imageURL.path, forKey: "lastSelectedImagePath")
+            }
+        }
+    }
     @Published var directoryURL: URL? = nil
 
     // Folder tree - root of selected directory
@@ -16,6 +23,9 @@ class DatasetViewModel: ObservableObject {
 
     // The root directory (stays fixed when navigating subdirs)
     private var rootDirectoryURL: URL? = nil
+
+    // Track last selected image path for session restoration
+    private var lastSelectedImagePath: String? = nil
 
     // URL resolvida com escopo de segurança (security-scoped)
     private var securedDirectoryURL: URL? = nil
@@ -69,6 +79,11 @@ class DatasetViewModel: ObservableObject {
             // Save as both root and current directory
             rootDirectoryURL = url
             directoryURL = url
+
+            // Clear session state when choosing new root (fresh start)
+            UserDefaults.standard.removeObject(forKey: "lastViewedFolderPath")
+            UserDefaults.standard.removeObject(forKey: "lastSelectedImagePath")
+            lastSelectedImagePath = nil
 
             // Criar bookmark com escopo e persistir
             do {
@@ -130,7 +145,6 @@ class DatasetViewModel: ObservableObject {
                     print("Bookmark restaurado está stale.")
                 }
                 rootDirectoryURL = resolved
-                directoryURL = resolved
                 securedDirectoryURL = resolved
 
                 // Start and keep security-scoped access active
@@ -138,6 +152,19 @@ class DatasetViewModel: ObservableObject {
 
                 // Build folder tree from root
                 folderTree = buildFolderTree(from: resolved)
+
+                // Load last selected image path before scanning
+                lastSelectedImagePath = UserDefaults.standard.string(forKey: "lastSelectedImagePath")
+
+                // Try to restore last viewed folder if available
+                if let lastFolderPath = UserDefaults.standard.string(forKey: "lastViewedFolderPath"),
+                   lastFolderPath.hasPrefix(resolved.path) {
+                    // Security check: ensure last folder is within root
+                    let lastFolderURL = URL(fileURLWithPath: lastFolderPath)
+                    directoryURL = lastFolderURL
+                } else {
+                    directoryURL = resolved
+                }
 
                 // Scan files
                 scanCurrentDirectory()
@@ -176,6 +203,7 @@ class DatasetViewModel: ObservableObject {
     // Navigate to a folder (called when user clicks folder in tree)
     func navigateToFolder(_ url: URL) {
         directoryURL = url
+        UserDefaults.standard.set(url.path, forKey: "lastViewedFolderPath")
         scanCurrentDirectory()
     }
 
@@ -231,7 +259,15 @@ class DatasetViewModel: ObservableObject {
 
         newPairs.sort { $0.imageURL.lastPathComponent.localizedCaseInsensitiveCompare($1.imageURL.lastPathComponent) == .orderedAscending }
         pairs = newPairs
-        selectedID = pairs.first?.id
+
+        // Try to restore last selected image if path matches
+        if let restoredPath = lastSelectedImagePath,
+           let matchingPair = pairs.first(where: { $0.imageURL.path == restoredPath }) {
+            selectedID = matchingPair.id
+            lastSelectedImagePath = nil // Clear after one-time restore
+        } else {
+            selectedID = pairs.first?.id
+        }
     }
 
     // Helper que ativa o escopo antes de executar e desativa depois

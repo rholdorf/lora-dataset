@@ -19,18 +19,18 @@
 ## Current Position
 
 Phase: 6 of 6 (Session Restoration)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2025-12-22 - Milestone v1.3 created
+Plan: 1 of 1 in current phase
+Status: Phase complete
+Last activity: 2025-12-22 - Completed 06-01-PLAN.md
 
-Progress: ░░░░░░░░░░ 0%
+Progress: ██████████ 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: 46 min
-- Total execution time: 4h 35m
+- Total plans completed: 7
+- Average duration: 40 min
+- Total execution time: 4h 38m
 
 **By Phase:**
 
@@ -41,10 +41,11 @@ Progress: ░░░░░░░░░░ 0%
 | 3 | 1 | 2h 15m | 2h 15m |
 | 4 | 1 | 20 min | 20 min |
 | 5 | 1 | 20 min | 20 min |
+| 6 | 1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-02 (1h 26m), 02-01 (11 min), 03-01 (2h 15m), 04-01 (20 min), 05-01 (20 min)
-- Trend: Consistent execution for UI polish phases
+- Last 5 plans: 02-01 (11 min), 03-01 (2h 15m), 04-01 (20 min), 05-01 (20 min), 06-01 (3 min)
+- Trend: Simple feature additions execute quickly
 
 *Updated after each plan completion*
 
@@ -70,6 +71,9 @@ Progress: ░░░░░░░░░░ 0%
 | 05-01 | .navigation placement for folder controls | Standard macOS toolbar convention for leading items |
 | 05-01 | .primaryAction for caption buttons | Prominent placement for primary actions |
 | 05-01 | Cmd+Shift+R for Reload Caption | Avoids conflict with system Cmd+R |
+| 06-01 | didSet observer for selectedID persistence | Automatic persistence without explicit calls |
+| 06-01 | Path-based matching for image restore | UUIDs regenerate on scan, paths are stable |
+| 06-01 | One-time restore pattern | Clear lastSelectedImagePath after matching to prevent loops |
 
 ### Deferred Issues
 
@@ -89,7 +93,7 @@ Drift notes: None
 ## Session Continuity
 
 Last session: 2025-12-22
-Stopped at: Milestone v1.3 initialization
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None
 
 ### Roadmap Evolution

@@ -19,7 +19,7 @@
 **Plans**: TBD
 
 Plans:
-- [ ] 06-01: TBD (run /gsd:plan-phase 6 to break down)
+- [x] 06-01: Session state persistence (folder + image selection)
 
 ## Progress
 
@@ -30,4 +30,4 @@ Plans:
 | 3. Security & Persistence | v1.1 | 1/1 | Complete | 2025-12-21 |
 | 4. Polish | v1.1 | 1/1 | Complete | 2025-12-21 |
 | 5. Toolbar Integration | v1.2 | 1/1 | Complete | 2025-12-22 |
-| 6. Session Restoration | v1.3 | 0/? | Not started | - |
+| 6. Session Restoration | v1.3 | 1/1 | Complete | 2025-12-22 |
