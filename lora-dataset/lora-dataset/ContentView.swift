@@ -14,37 +14,50 @@ struct ContentView: View {
                 Divider()
 
                 // Sidebar with folders and files
-                List(selection: $selectedFileID) {
-                    // Folders section - using recursive DisclosureGroup for expansion control
-                    if !vm.folderTree.isEmpty {
-                        Section("Pastas") {
-                            FolderTreeView(nodes: vm.folderTree, vm: vm)
+                ScrollViewReader { proxy in
+                    List(selection: $selectedFileID) {
+                        // Folders section - using recursive DisclosureGroup for expansion control
+                        if !vm.folderTree.isEmpty {
+                            Section("Pastas") {
+                                FolderTreeView(nodes: vm.folderTree, vm: vm)
+                            }
+                        }
+
+                        // Files section
+                        Section("Arquivos (\(vm.pairs.count))") {
+                            ForEach(vm.pairs) { pair in
+                                HStack(spacing: 4) {
+                                    Text(pair.imageURL.lastPathComponent)
+                                    if pair.isDirty {
+                                        Image(systemName: "circle.fill")
+                                            .font(.system(size: 6))
+                                            .foregroundColor(.orange)
+                                    }
+                                    Spacer()
+                                    if pair.captionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        Text("sem caption")
+                                            .font(.caption)
+                                            .italic()
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .tag(pair.id)
+                                .id(pair.id)
+                            }
                         }
                     }
-
-                    // Files section
-                    Section("Arquivos (\(vm.pairs.count))") {
-                        ForEach(vm.pairs) { pair in
-                            HStack(spacing: 4) {
-                                Text(pair.imageURL.lastPathComponent)
-                                if pair.isDirty {
-                                    Image(systemName: "circle.fill")
-                                        .font(.system(size: 6))
-                                        .foregroundColor(.orange)
-                                }
-                                Spacer()
-                                if pair.captionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    Text("sem caption")
-                                        .font(.caption)
-                                        .italic()
-                                        .foregroundColor(.secondary)
+                    .listStyle(.sidebar)
+                    .onChange(of: vm.pairs) {
+                        // Scroll to selected item when pairs are loaded (session restore)
+                        if let id = vm.selectedID {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                withAnimation {
+                                    proxy.scrollTo(id, anchor: .center)
                                 }
                             }
-                            .tag(pair.id)
                         }
                     }
                 }
-                .listStyle(.sidebar)
             }
             .frame(minWidth: 280)
         } detail: {
