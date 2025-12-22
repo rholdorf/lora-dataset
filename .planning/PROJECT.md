@@ -1,24 +1,25 @@
 # LoRA Dataset Browser
 
-## Current State (Updated: 2025-12-21)
+## Current State (Updated: 2025-12-22)
 
-**Shipped:** v1.1 Finder Navigation (2025-12-21)
+**Shipped:** v1.2 Improvements (2025-12-22)
 **Status:** Internal use
 **Users:** Solo developer (Rui)
-**Feedback:** Gathering feedback on v1.1
+**Feedback:** Gathering feedback on v1.2
 
 **Codebase:**
-- ~1,054 lines of Swift
+- ~1,093 lines of Swift
 - SwiftUI + AppKit (NSViewRepresentable for zoom/pan)
 - MVVM architecture with @MainActor ViewModel
 - Security-scoped bookmarks for sandbox compliance
 
 **Current Capabilities:**
+- Native macOS toolbar with folder picker and path display
 - Sidebar folder tree with expand/collapse navigation
 - Navigate directories without re-selecting via NSOpenPanel
 - View images with pan and zoom (custom NSView)
 - Edit caption text in a TextEditor
-- Cmd+S keyboard shortcut and File → Save menu
+- File menu: Open Folder (Cmd+O), Save (Cmd+S), Reload Caption (Cmd+Shift+R)
 - Orange dirty indicator for unsaved changes
 - Folder expansion state persists between app launches
 - Auto-restore last directory on launch
@@ -28,9 +29,31 @@
 
 ## Next Milestone Goals
 
-_No active milestone planned. Gathering feedback on v1.1._
+_No active milestone planned. Gathering feedback on v1.2._
 
 ---
+
+<details>
+<summary>v1.2 Goals (Archived)</summary>
+
+**Vision:** UI polish with native macOS toolbar integration.
+
+**Motivation:**
+- Inline buttons looked non-native
+- Wanted proper macOS toolbar appearance
+- Need keyboard shortcuts for common actions
+
+**Scope (v1.2):**
+- Native macOS toolbar with folder picker and path display
+- Save and Reload buttons in toolbar
+- File menu commands with keyboard shortcuts
+
+**Success Criteria:**
+- [x] Controls in native toolbar, not inline
+- [x] File menu with keyboard shortcuts (Cmd+O, Cmd+S, Cmd+Shift+R)
+- [x] Clean, Finder-like appearance
+
+</details>
 
 <details>
 <summary>v1.1 Goals (Archived)</summary>

@@ -3,22 +3,11 @@
 ## Completed Milestones
 
 - [v1.1 Finder Navigation](milestones/v1.1-ROADMAP.md) (Phases 1-4) - SHIPPED 2025-12-21
+- [v1.2 Improvements](milestones/v1.2-ROADMAP.md) (Phase 5) - SHIPPED 2025-12-22
 
 ## Current Milestone
 
-### 🚧 v1.2 Improvements (In Progress)
-
-**Milestone Goal:** UI polish with native macOS toolbar integration
-
-#### Phase 5: Toolbar Integration
-
-**Goal**: Move existing controls to native macOS toolbar with Finder-like behavior
-**Depends on**: Phase 4 (v1.1 complete)
-**Research**: Unlikely (internal SwiftUI patterns)
-**Plans**: TBD
-
-Plans:
-- [x] 05-01: Toolbar with folder navigation and caption actions (3 tasks)
+_No active milestone. Ready for next feature planning._
 
 ## Progress
 
