@@ -11,26 +11,6 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             VStack(spacing: 0) {
-                // Header with folder picker and current path
-                HStack {
-                    Button("Escolher Pasta") {
-                        Task { await vm.chooseDirectory() }
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-
-                if let dir = vm.directoryURL {
-                    Text(dir.path)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.head)
-                        .padding(.horizontal)
-                        .padding(.bottom, 4)
-                }
-
                 Divider()
 
                 // Sidebar with folders and files
@@ -71,6 +51,45 @@ struct ContentView: View {
             DetailView(vm: vm, loadedImage: $loadedImage, imageScale: $imageScale, imageOffset: $imageOffset)
         }
         .frame(minWidth: 900, minHeight: 500)
+        .navigationTitle("")
+        .toolbar {
+            // Leading: Folder navigation
+            ToolbarItemGroup(placement: .navigation) {
+                Button {
+                    Task { await vm.chooseDirectory() }
+                } label: {
+                    Label("Escolher Pasta", systemImage: "folder.badge.plus")
+                }
+                .help("Escolher pasta de dataset")
+
+                if let dir = vm.directoryURL {
+                    Text(dir.path)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                        .help(dir.path)
+                }
+            }
+
+            // Trailing: Caption actions
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    vm.reloadCaptionForSelected()
+                } label: {
+                    Label("Recarregar", systemImage: "arrow.clockwise")
+                }
+                .help("Recarregar caption do disco")
+                .disabled(vm.selectedID == nil)
+
+                Button {
+                    vm.saveSelected()
+                } label: {
+                    Label("Salvar", systemImage: "square.and.arrow.down")
+                }
+                .help("Salvar caption (Cmd+S)")
+                .disabled(!vm.selectedIsDirty)
+            }
+        }
         .focusedValue(\.datasetViewModel, vm)
         .onAppear {
             selectedFileID = vm.selectedID
@@ -185,14 +204,8 @@ struct DetailView: View {
             if let selectedID = vm.selectedID,
                let idx = vm.pairs.firstIndex(where: { $0.id == selectedID }) {
                 // Caption header
-                HStack {
-                    Text(vm.pairs[idx].captionURL.lastPathComponent)
-                        .font(.headline)
-                    Spacer()
-                    Button("Recarregar Caption") {
-                        vm.reloadCaptionForSelected()
-                    }
-                }
+                Text(vm.pairs[idx].captionURL.lastPathComponent)
+                    .font(.headline)
 
                 // Image and caption editor
                 HSplitView {
@@ -226,13 +239,6 @@ struct DetailView: View {
                                 .stroke(Color.secondary.opacity(0.5))
                         )
                         .frame(minHeight: 200)
-
-                        HStack {
-                            Spacer()
-                            Button("Salvar") {
-                                vm.saveSelected()
-                            }
-                        }
                     }
                     .padding()
                 }

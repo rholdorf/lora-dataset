@@ -19,18 +19,18 @@
 ## Current Position
 
 Phase: 5 of 5 (Toolbar Integration)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2025-12-22 - Milestone v1.2 created
+Plan: 1 of 1 in current phase
+Status: Phase complete
+Last activity: 2025-12-22 - Completed 05-01-PLAN.md
 
-Progress: ░░░░░░░░░░ 0%
+Progress: ██████████ 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 51 min
-- Total execution time: 4h 15m
+- Total plans completed: 6
+- Average duration: 46 min
+- Total execution time: 4h 35m
 
 **By Phase:**
 
@@ -40,10 +40,11 @@ Progress: ░░░░░░░░░░ 0%
 | 2 | 1 | 11 min | 11 min |
 | 3 | 1 | 2h 15m | 2h 15m |
 | 4 | 1 | 20 min | 20 min |
+| 5 | 1 | 20 min | 20 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (3 min), 01-02 (1h 26m), 02-01 (11 min), 03-01 (2h 15m), 04-01 (20 min)
-- Trend: Faster execution with bug fixes during polish
+- Last 5 plans: 01-02 (1h 26m), 02-01 (11 min), 03-01 (2h 15m), 04-01 (20 min), 05-01 (20 min)
+- Trend: Consistent execution for UI polish phases
 
 *Updated after each plan completion*
 
@@ -66,6 +67,9 @@ Progress: ░░░░░░░░░░ 0%
 | 04-01 | Manual disclosure over DisclosureGroup | DisclosureGroup intercepts label clicks, preventing navigation |
 | 04-01 | onTapGesture over Button in List | Button hit-testing unreliable after List re-renders |
 | 04-01 | Separate FolderNodeView | Each node needs own View for proper state lifecycle |
+| 05-01 | .navigation placement for folder controls | Standard macOS toolbar convention for leading items |
+| 05-01 | .primaryAction for caption buttons | Prominent placement for primary actions |
+| 05-01 | Cmd+Shift+R for Reload Caption | Avoids conflict with system Cmd+R |
 
 ### Deferred Issues
 
@@ -85,7 +89,7 @@ Drift notes: None
 ## Session Continuity
 
 Last session: 2025-12-22
-Stopped at: Milestone v1.2 initialization
+Stopped at: Completed 05-01-PLAN.md (Milestone v1.2 complete)
 Resume file: None
 
 ### Roadmap Evolution

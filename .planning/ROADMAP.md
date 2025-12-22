@@ -18,7 +18,7 @@
 **Plans**: TBD
 
 Plans:
-- [ ] 05-01: TBD (run /gsd:plan-phase 5 to break down)
+- [x] 05-01: Toolbar with folder navigation and caption actions (3 tasks)
 
 ## Progress
 
@@ -28,4 +28,4 @@ Plans:
 | 2. Save Enhancements | v1.1 | 1/1 | Complete | 2025-12-21 |
 | 3. Security & Persistence | v1.1 | 1/1 | Complete | 2025-12-21 |
 | 4. Polish | v1.1 | 1/1 | Complete | 2025-12-21 |
-| 5. Toolbar Integration | v1.2 | 0/? | Not started | - |
+| 5. Toolbar Integration | v1.2 | 1/1 | Complete | 2025-12-22 |
