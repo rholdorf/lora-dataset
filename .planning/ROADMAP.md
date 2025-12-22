@@ -4,22 +4,11 @@
 
 - [v1.1 Finder Navigation](milestones/v1.1-ROADMAP.md) (Phases 1-4) - SHIPPED 2025-12-21
 - [v1.2 Improvements](milestones/v1.2-ROADMAP.md) (Phase 5) - SHIPPED 2025-12-22
+- [v1.3 Features](milestones/v1.3-ROADMAP.md) (Phase 6) - SHIPPED 2025-12-22
 
 ## Current Milestone
 
-### 🚧 v1.3 Features (In Progress)
-
-**Milestone Goal:** Add session restoration to remember last viewed position
-
-#### Phase 6: Session Restoration
-
-**Goal**: Remember and restore last viewed image position on app relaunch
-**Depends on**: Phase 5
-**Research**: Unlikely (uses existing UserDefaults patterns)
-**Plans**: TBD
-
-Plans:
-- [x] 06-01: Session state persistence (folder + image selection)
+_No active milestone. Gathering feedback on v1.3._
 
 ## Progress
 

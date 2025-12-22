@@ -2,13 +2,13 @@
 
 ## Current State (Updated: 2025-12-22)
 
-**Shipped:** v1.2 Improvements (2025-12-22)
+**Shipped:** v1.3 Features (2025-12-22)
 **Status:** Internal use
 **Users:** Solo developer (Rui)
-**Feedback:** Gathering feedback on v1.2
+**Feedback:** Gathering feedback on v1.3
 
 **Codebase:**
-- ~1,093 lines of Swift
+- ~1,142 lines of Swift
 - SwiftUI + AppKit (NSViewRepresentable for zoom/pan)
 - MVVM architecture with @MainActor ViewModel
 - Security-scoped bookmarks for sandbox compliance
@@ -23,15 +23,37 @@
 - Orange dirty indicator for unsaved changes
 - Folder expansion state persists between app launches
 - Auto-restore last directory on launch
+- Session restoration: remembers last folder and selected image
+- Auto-scroll to restored image in file list
 
 **Known Issues:**
 - None currently identified
 
 ## Next Milestone Goals
 
-_No active milestone planned. Gathering feedback on v1.2._
+_No active milestone planned. Gathering feedback on v1.3._
 
 ---
+
+<details>
+<summary>v1.3 Goals (Archived)</summary>
+
+**Vision:** Session restoration to remember last viewed position.
+
+**Motivation:**
+- Users should return to exactly where they left off
+- No need to re-navigate to the same folder and image
+
+**Scope (v1.3):**
+- Remember last viewed folder path
+- Remember last selected image
+- Auto-scroll to restored image in file list
+
+**Success Criteria:**
+- [x] App remembers folder and image selection across launches
+- [x] File list scrolls to show restored selection
+
+</details>
 
 <details>
 <summary>v1.2 Goals (Archived)</summary>
