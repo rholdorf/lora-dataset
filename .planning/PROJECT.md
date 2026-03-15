@@ -29,9 +29,14 @@
 **Known Issues:**
 - None currently identified
 
-## Next Milestone Goals
+## Current Milestone: v1.4 Native OS Integration
 
-_No active milestone planned. Gathering feedback on v1.3._
+**Goal:** Deep macOS integration — Finder context menus, Quick Look preview, and full native text editing with spell check and dictionary support.
+
+**Target features:**
+- Finder-native context menu (right-click) on files and folders in sidebar
+- Quick Look preview on spacebar press
+- Full native NSTextView for caption editing (spell check, grammar, dictionary, auto-language detection, substitutions)
 
 ---
 
