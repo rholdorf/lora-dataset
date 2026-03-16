@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Native OS Integration
 status: planning
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-16T01:57:03.726Z"
+stopped_at: "Checkpoint: human-verify at Task 3 of 08-01-PLAN.md"
+last_updated: "2026-03-16T02:28:19.036Z"
 last_activity: 2026-03-15 — Roadmap created for v1.4 Native OS Integration
 progress:
   total_phases: 3
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
   percent: 0
 ---
 
@@ -57,6 +57,7 @@ Progress: [░░░░░░░░░░] 0% (v1.4)
 *Updated after each plan completion*
 | Phase 07-01 P01 | 4 | 3 tasks | 3 files |
 | Phase 07-01 P01 | 45 | 3 tasks | 4 files |
+| Phase 08-finder-context-menus P01 | 20 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,9 @@ Progress: [░░░░░░░░░░] 0% (v1.4)
 - [Phase 07-01]: Monospace font size 13 used for CaptionEditorView — appropriate for LoRA training data captions
 - [Phase 07-01]: TextEditingCommands added to WindowGroup to expose Spelling & Grammar menu in macOS menu bar
 - [Phase 07-01]: NSTextView subclass (CaptionNSTextView) used for reliable grammar check underline behavior
+- [Phase 08-01]: QLPreviewHelper is deliberately minimal — Phase 9 will build full QLPreviewPanel with spacebar support
+- [Phase 08-01]: openWithMenu as @ViewBuilder on ContentView — NSWorkspace calls inline acceptable since .contextMenu rebuilds each time
+- [Phase 08-01]: NSApp.keyWindow?.makeFirstResponder(nil) before QLPreviewPanel to prevent NSTextView hijack
 
 ### Blockers/Concerns Carried Forward
 
@@ -95,6 +99,6 @@ Progress: [░░░░░░░░░░] 0% (v1.4)
 
 ## Session Continuity
 
-Last session: 2026-03-16T01:57:03.724Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-finder-context-menus/08-CONTEXT.md
+Last session: 2026-03-16T02:28:19.034Z
+Stopped at: Checkpoint: human-verify at Task 3 of 08-01-PLAN.md
+Resume file: None

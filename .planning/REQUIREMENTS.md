@@ -17,11 +17,11 @@ Requirements for v1.4 Native OS Integration. Each maps to roadmap phases.
 
 ### Context Menu
 
-- [ ] **CTXM-01**: User can right-click a file in sidebar to see a context menu
-- [ ] **CTXM-02**: User can right-click a folder in sidebar to see a context menu
-- [ ] **CTXM-03**: Context menu includes "Reveal in Finder" (files) / "Open in Finder" (folders)
-- [ ] **CTXM-04**: Context menu includes "Open With" submenu listing compatible applications
-- [ ] **CTXM-05**: Context menu includes "Quick Look" to preview the file
+- [x] **CTXM-01**: User can right-click a file in sidebar to see a context menu
+- [x] **CTXM-02**: User can right-click a folder in sidebar to see a context menu
+- [x] **CTXM-03**: Context menu includes "Reveal in Finder" (files) / "Open in Finder" (folders)
+- [x] **CTXM-04**: Context menu includes "Open With" submenu listing compatible applications
+- [x] **CTXM-05**: Context menu includes "Quick Look" to preview the file
 
 ### Quick Look
 
@@ -59,11 +59,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EDIT-03 | Phase 7 | Complete |
 | EDIT-04 | Phase 7 | Complete |
 | EDIT-05 | Phase 7 | Complete |
-| CTXM-01 | Phase 8 | Pending |
-| CTXM-02 | Phase 8 | Pending |
-| CTXM-03 | Phase 8 | Pending |
-| CTXM-04 | Phase 8 | Pending |
-| CTXM-05 | Phase 8 | Pending |
+| CTXM-01 | Phase 8 | Complete |
+| CTXM-02 | Phase 8 | Complete |
+| CTXM-03 | Phase 8 | Complete |
+| CTXM-04 | Phase 8 | Complete |
+| CTXM-05 | Phase 8 | Complete |
 | QLPV-01 | Phase 9 | Pending |
 | QLPV-02 | Phase 9 | Pending |
 | QLPV-03 | Phase 9 | Pending |
