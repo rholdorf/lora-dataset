@@ -24,6 +24,26 @@ class DatasetViewModel: ObservableObject {
     // Expansion state for folder tree (using paths for persistence)
     @Published var expandedPaths: Set<String> = []
 
+    // Incremented when a caption is reloaded from disk or saved, so
+    // CaptionEditingContainer can re-sync its local text state.
+    @Published var captionReloadToken: Int = 0
+
+    // Live editing text — written directly by CaptionEditingContainer without
+    // triggering objectWillChange. Read by saveSelected().
+    var liveEditingText: String = ""
+
+    // Dirty state managed with guarded transitions: objectWillChange only fires
+    // when the dirty flag actually changes (false→true on first keystroke,
+    // true→false on save/switch), NOT on every keystroke.
+    private var _editingIsDirty: Bool = false
+    var editingIsDirty: Bool { _editingIsDirty }
+
+    func setEditingDirty(_ dirty: Bool) {
+        guard _editingIsDirty != dirty else { return }
+        _editingIsDirty = dirty
+        objectWillChange.send()
+    }
+
     // The root directory (stays fixed when navigating subdirs)
     private var rootDirectoryURL: URL? = nil
 
@@ -48,7 +68,7 @@ class DatasetViewModel: ObservableObject {
     }
 
     var selectedIsDirty: Bool {
-        selectedPair?.isDirty ?? false
+        _editingIsDirty || (selectedPair?.isDirty ?? false)
     }
 
     init() {
@@ -294,6 +314,11 @@ class DatasetViewModel: ObservableObject {
         guard let id = selectedID,
               let idx = pairs.firstIndex(where: { $0.id == id }) else { return }
 
+        // Sync live editing text into pairs before saving
+        if _editingIsDirty {
+            pairs[idx].captionText = liveEditingText
+        }
+
         let pair = pairs[idx]
         let captionText = pair.captionText
         let captionURL = pair.captionURL
@@ -313,6 +338,9 @@ class DatasetViewModel: ObservableObject {
             }
             // Update savedCaptionText after successful save
             pairs[idx].savedCaptionText = captionText
+            _editingIsDirty = false
+            // Signal CaptionEditingContainer to update its savedText
+            captionReloadToken &+= 1
         } catch {
             print("[saveSelected] erro ao salvar caption:", error)
         }
@@ -329,6 +357,8 @@ class DatasetViewModel: ObservableObject {
             pair.savedCaptionText = reloaded
             pairs[idx] = pair
         }
+        // Signal DetailView to re-sync its local caption text state
+        captionReloadToken &+= 1
     }
 
     // MARK: - Context Menu Actions

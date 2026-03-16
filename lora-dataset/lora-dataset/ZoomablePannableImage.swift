@@ -44,23 +44,31 @@ struct ZoomablePannableImage: NSViewRepresentable {
     func updateNSView(_ nsView: ZoomableImageNSView, context: Context) {
         // Atualiza imagem e reset quando diferente
         nsView.coordinator = context.coordinator
+        var needsRedraw = false
         if nsView.image !== image {
             nsView.image = image
             nsView.resetToFit()
             // Atualiza bindings SwiftUI
             context.coordinator.updateBindings(scale: nsView.scale, offset: nsView.offset)
+            needsRedraw = true
         }
         // Sincroniza scale e offset sem disparar callbacks
         nsView.isUpdatingProgrammatically = true
         if abs(nsView.scale - scale) > 0.001 {
             nsView.scale = scale
+            needsRedraw = true
         }
         if abs(nsView.offset.width - offset.width) > 0.1 || abs(nsView.offset.height - offset.height) > 0.1 {
             nsView.offset = offset
+            needsRedraw = true
         }
         nsView.isUpdatingProgrammatically = false
-        // Força redraw
-        nsView.needsDisplay = true
+        // Only redraw when image, scale, or offset actually changed — avoids a full
+        // NSView repaint on every SwiftUI update cycle (e.g. every keystroke in the
+        // caption editor triggering a parent view re-render).
+        if needsRedraw {
+            nsView.needsDisplay = true
+        }
     }
 }
 

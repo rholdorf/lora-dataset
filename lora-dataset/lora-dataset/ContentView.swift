@@ -29,7 +29,7 @@ struct ContentView: View {
                             ForEach(vm.pairs) { pair in
                                 HStack(spacing: 4) {
                                     Text(pair.imageURL.lastPathComponent)
-                                    if pair.isDirty {
+                                    if pair.isDirty || (pair.id == vm.selectedID && vm.editingIsDirty) {
                                         Image(systemName: "circle.fill")
                                             .font(.system(size: 6))
                                             .foregroundColor(.orange)
@@ -320,15 +320,14 @@ struct DetailView: View {
     @Binding var imageScale: CGFloat
     @Binding var imageOffset: CGSize
 
+    @State private var captionFilename: String = ""
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let selectedID = vm.selectedID,
-               let idx = vm.pairs.firstIndex(where: { $0.id == selectedID }) {
-                // Caption header
-                Text(vm.pairs[idx].captionURL.lastPathComponent)
+            if vm.selectedID != nil {
+                Text(captionFilename)
                     .font(.headline)
 
-                // Image and caption editor
                 HSplitView {
                     Group {
                         if let nsImage = loadedImage {
@@ -347,16 +346,9 @@ struct DetailView: View {
                     .frame(width: 400, height: 400)
                     .padding()
 
-                    VStack(alignment: .leading) {
-                        Text("Caption / descrição:")
-                            .font(.subheadline)
-                        CaptionEditorView(text: Binding(
-                            get: { vm.pairs[idx].captionText },
-                            set: { vm.pairs[idx].captionText = $0 }
-                        ))
-                        .frame(minHeight: 200)
-                    }
-                    .padding()
+                    // Caption editing in its own view — isolates @State so
+                    // keystrokes only re-render the editor, not the image panel.
+                    CaptionEditingContainer(vm: vm)
                 }
             } else {
                 Text("Selecione uma imagem à esquerda.")
@@ -366,6 +358,84 @@ struct DetailView: View {
             Spacer()
         }
         .padding()
+        .onChange(of: vm.selectedID) {
+            syncCaptionFilename()
+        }
+        .onAppear {
+            syncCaptionFilename()
+        }
+    }
+
+    private func syncCaptionFilename() {
+        guard let id = vm.selectedID,
+              let pair = vm.pairs.first(where: { $0.id == id }) else {
+            captionFilename = ""
+            return
+        }
+        captionFilename = pair.captionURL.lastPathComponent
+    }
+}
+
+// Isolates caption editing state so that per-keystroke @State changes
+// only invalidate this view, NOT the parent DetailView (which contains
+// the expensive ZoomablePannableImage).
+struct CaptionEditingContainer: View {
+    @ObservedObject var vm: DatasetViewModel
+
+    @State private var localText: String = ""
+    @State private var savedText: String = ""
+    @State private var currentID: UUID? = nil
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text("Caption / descrição:")
+                .font(.subheadline)
+            CaptionEditorView(text: $localText)
+                .frame(minHeight: 200)
+        }
+        .padding()
+        .onChange(of: localText) {
+            // Non-published write — does NOT fire objectWillChange
+            vm.liveEditingText = localText
+            // Only fires objectWillChange on actual state transitions
+            // (false→true on first keystroke, NOT on every keystroke)
+            vm.setEditingDirty(localText != savedText)
+        }
+        .onChange(of: vm.selectedID) {
+            flushAndSync()
+        }
+        .onChange(of: vm.captionReloadToken) {
+            syncFromVM()
+        }
+        .onAppear {
+            syncFromVM()
+        }
+    }
+
+    /// Flush current edits to pairs before loading new selection.
+    private func flushAndSync() {
+        if let oldID = currentID,
+           let idx = vm.pairs.firstIndex(where: { $0.id == oldID }),
+           vm.pairs[idx].captionText != localText {
+            vm.pairs[idx].captionText = localText
+        }
+        syncFromVM()
+    }
+
+    private func syncFromVM() {
+        guard let id = vm.selectedID,
+              let pair = vm.pairs.first(where: { $0.id == id }) else {
+            localText = ""
+            savedText = ""
+            currentID = nil
+            vm.setEditingDirty(false)
+            return
+        }
+        localText = pair.captionText
+        savedText = pair.savedCaptionText
+        currentID = id
+        vm.liveEditingText = localText
+        vm.setEditingDirty(localText != savedText)
     }
 }
 
