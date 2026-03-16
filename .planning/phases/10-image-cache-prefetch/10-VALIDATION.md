@@ -40,10 +40,10 @@ created: 2026-03-16
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
 | 10-01-01 | 01 | 1 | CACHE-01 | unit | `xcodebuild test ... -only-testing:lora-datasetTests/ImageCacheActorTests/testCacheHitReturnsCachedImage` | ❌ W0 | ⬜ pending |
 | 10-01-02 | 01 | 1 | CACHE-02 | unit | `xcodebuild test ... -only-testing:lora-datasetTests/ImageCacheActorTests/testCostAccounting` | ❌ W0 | ⬜ pending |
-| 10-01-03 | 01 | 1 | CACHE-03 | unit | `xcodebuild test ... -only-testing:lora-datasetTests/ImageCacheActorTests/testPrefetchEnqueuedForNeighbors` | ❌ W0 | ⬜ pending |
+| 10-02-02 | 02 | 2 | CACHE-03 | unit | `xcodebuild test ... -only-testing:lora-datasetTests/DatasetViewModelCacheTests/testPrefetchEnqueuedForNeighbors` | ❌ W0 | ⬜ pending |
 | 10-01-04 | 01 | 1 | CACHE-04 | unit | `xcodebuild test ... -only-testing:lora-datasetTests/ImageLoaderTests/testLoadsWithCGImageSource` | ❌ W0 | ⬜ pending |
 | 10-01-05 | 01 | 1 | CACHE-05 | unit | `xcodebuild test ... -only-testing:lora-datasetTests/ImageCacheActorTests/testMemoryPressureEviction` | ❌ W0 | ⬜ pending |
-| 10-01-06 | 01 | 1 | CACHE-06 | unit | `xcodebuild test ... -only-testing:lora-datasetTests/ImageCacheActorTests/testStalePrefetchCancelled` | ❌ W0 | ⬜ pending |
+| 10-02-02 | 02 | 2 | CACHE-06 | unit | `xcodebuild test ... -only-testing:lora-datasetTests/DatasetViewModelCacheTests/testStalePrefetchCancelled` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
