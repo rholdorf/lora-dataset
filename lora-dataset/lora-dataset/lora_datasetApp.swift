@@ -44,6 +44,7 @@ struct lora_datasetApp: App {
                 Divider()
                 ReloadCaptionCommandView()
             }
+            TextEditingCommands()
         }
     }
 }
