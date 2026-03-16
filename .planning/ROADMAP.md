@@ -54,7 +54,9 @@ Plans:
   1. Pressing spacebar while a file is selected opens the native Quick Look floating panel showing the image
   2. Pressing spacebar again or pressing Escape dismisses the Quick Look panel
   3. The Quick Look panel appears as a floating window (not a sheet or popover) above the app
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 09-01-PLAN.md — Wire QLPreviewPanel with spacebar toggle, selection following, universal dismiss, and context menu integration
 
 ## Progress
 
@@ -70,4 +72,4 @@ Plans:
 | 6. Session Restoration | v1.3 | 1/1 | Complete | 2025-12-22 |
 | 7. NSTextView Caption Editor | v1.4 | 1/1 | Complete | 2026-03-16 |
 | 8. Finder Context Menus | 1/1 | Complete   | 2026-03-16 | - |
-| 9. Quick Look Preview | v1.4 | 0/? | Not started | - |
+| 9. Quick Look Preview | v1.4 | 0/1 | Not started | - |
