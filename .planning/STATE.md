@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Performance & Live Sync
 status: verifying
-stopped_at: Phase 11 context gathered
-last_updated: "2026-03-16T21:30:49.284Z"
+stopped_at: "Completed 11-01: DirectoryWatcher + ImageCacheActor.remove(for:)"
+last_updated: "2026-03-16T22:05:30.977Z"
 last_activity: 2026-03-16 — Phase 10 Plan 02 complete (cache wiring + prefetch + spinner)
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
   percent: 100
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** View images alongside their caption files and edit captions in place for LoRA training datasets
-**Current focus:** Phase 10 — Image Cache + Prefetch
+**Current focus:** Phase 11 — Filesystem Watchdog Structural Changes
 
 ## Current Position
 
-Phase: 10 of 12 (Image Cache + Prefetch)
-Plan: 02 complete (tasks 1-3), task 4 awaiting human-verify checkpoint
-Status: Checkpoint — awaiting user verification
-Last activity: 2026-03-16 — Phase 10 Plan 02 complete (cache wiring + prefetch + spinner)
+Phase: 11 of 12 (Filesystem Watchdog Structural Changes)
+Plan: 01 complete — DirectoryWatcher + ImageCacheActor.remove(for:)
+Status: In progress — Plan 01 done, Plan 02 next
+Last activity: 2026-03-16 — Phase 11 Plan 01 complete (DirectoryWatcher + targeted cache eviction)
 
-Progress: [██████████] 100% (2/2 plans complete)
+Progress: [████████░░] 75% (3/4 plans complete)
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [██████████] 100% (2/2 plans complete)
 | 9 | 1 | manual | iterative |
 | 10 (P01) | 1 | 5 min | 5 min |
 | 10 (P02) | 1 | 5 min | 5 min |
+| Phase 11 P01 | 3m | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -83,12 +84,20 @@ Progress: [██████████] 100% (2/2 plans complete)
 
 - Phase 12: exact UX for dirty-caption conflict prompt (style, button labels, dismiss behavior)
 
+### Decisions Made (v1.5 Phase 11)
+
+| Phase | Decision | Rationale |
+|-------|----------|-----------|
+| 11 | DispatchSource VNODE .write event mask fires reliably for file add/delete | Empirically validated by DirectoryWatcherTests — blocker resolved |
+| 11 | cancel-and-reschedule DispatchWorkItem for debounce (not Timer) | Stays on watcher serial queue, no main thread coupling |
+| 11 | O_EVTONLY file descriptor for directory watching | Prevents directory from blocking unmount |
+
 ### Blockers/Concerns
 
-- Phase 11: empirically validate DispatchSource VNODE `.write` event fires on file add/delete before building dependent logic
+(None — Phase 11 VNODE .write blocker resolved empirically in Plan 01 tests)
 
 ## Session Continuity
 
-Last session: 2026-03-16T21:30:49.283Z
-Stopped at: Phase 11 context gathered
-Next: Human verifies app behavior (Task 4 checkpoint), then Phase 11 (live sync)
+Last session: 2026-03-16T22:05:30.975Z
+Stopped at: Completed 11-01: DirectoryWatcher + ImageCacheActor.remove(for:)
+Next: Phase 11 Plan 02 — wire DirectoryWatcher into DatasetViewModel (live sync)

@@ -18,10 +18,10 @@ Requirements for v1.5 Performance & Live Sync. Each maps to roadmap phases.
 
 ### Filesystem Watchdog
 
-- [ ] **WATCH-01**: Directory-level VNODE watcher detects file additions, deletions, and renames
+- [x] **WATCH-01**: Directory-level VNODE watcher detects file additions, deletions, and renames
 - [ ] **WATCH-02**: File list updates silently when files are added or removed externally
-- [ ] **WATCH-03**: Watchdog events are debounced (0.5s) to prevent UI thrashing
-- [ ] **WATCH-04**: Watchdog tears down and rebuilds when navigating to a different folder
+- [x] **WATCH-03**: Watchdog events are debounced (0.5s) to prevent UI thrashing
+- [x] **WATCH-04**: Watchdog tears down and rebuilds when navigating to a different folder
 - [ ] **WATCH-05**: Caption file watcher detects external modifications to the selected caption
 - [ ] **WATCH-06**: Caption reloads silently when modified externally and caption is not dirty
 - [ ] **WATCH-07**: App's own save (Cmd+S) does not trigger a false reload (self-write suppression)
@@ -60,10 +60,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CACHE-04 | Phase 10 | Complete |
 | CACHE-05 | Phase 10 | Complete |
 | CACHE-06 | Phase 10 | Complete |
-| WATCH-01 | Phase 11 | Pending |
+| WATCH-01 | Phase 11 | Complete |
 | WATCH-02 | Phase 11 | Pending |
-| WATCH-03 | Phase 11 | Pending |
-| WATCH-04 | Phase 11 | Pending |
+| WATCH-03 | Phase 11 | Complete |
+| WATCH-04 | Phase 11 | Complete |
 | WATCH-05 | Phase 12 | Pending |
 | WATCH-06 | Phase 12 | Pending |
 | WATCH-07 | Phase 12 | Pending |

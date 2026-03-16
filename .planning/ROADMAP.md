@@ -42,7 +42,7 @@ Plans:
   2. Deleting a file from Finder removes it from the sidebar list silently
   3. Bulk file additions (e.g., copying 50 files at once) do not cause rapid-fire UI refreshes -- only one rescan fires
   4. Navigating to a different folder stops watching the old folder and starts watching the new one
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 11-01-PLAN.md -- DirectoryWatcher class (DispatchSource VNODE + debounce) + ImageCacheActor.remove(for:) + unit tests
 - [ ] 11-02-PLAN.md -- ViewModel integration: watcher lifecycle, rescan diff, selection repair, cache eviction, folder tree updates
@@ -73,5 +73,5 @@ Plans:
 | 8. Finder Context Menus | v1.4 | 1/1 | Complete | 2026-03-16 |
 | 9. Quick Look Preview | v1.4 | 1/1 | Complete | 2026-03-16 |
 | 10. Image Cache + Prefetch | 2/2 | Complete    | 2026-03-16 | - |
-| 11. FS Watchdog -- Structural | v1.5 | 0/2 | Planned | - |
+| 11. FS Watchdog -- Structural | 1/2 | In Progress|  | - |
 | 12. FS Watchdog -- Captions | v1.5 | 0/? | Not started | - |
