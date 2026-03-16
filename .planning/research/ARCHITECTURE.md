@@ -1,56 +1,59 @@
 # Architecture Research
 
-**Domain:** Native macOS OS Integration — SwiftUI + AppKit hybrid app
-**Researched:** 2026-03-15
-**Confidence:** HIGH (all three integration areas verified against Apple docs and community implementation patterns)
-
-## Context: What Already Exists
-
-The app is a SwiftUI + AppKit hybrid using the NSViewRepresentable pattern:
-
-```
-ContentView (SwiftUI)
-  NavigationSplitView
-    ├── Sidebar (SwiftUI List)
-    │     ├── FolderTreeView / FolderNodeView (SwiftUI)
-    │     └── File rows (ForEach over vm.pairs)
-    └── DetailView (SwiftUI)
-          ├── ZoomablePannableImage (NSViewRepresentable → ZoomableImageNSView)
-          └── TextEditor (SwiftUI — being replaced)
-
-DatasetViewModel (@MainActor ObservableObject)
-  └── @Published pairs, selectedID, folderTree, directoryURL, expandedPaths
-```
-
-The coordinator pattern is already established in `ZoomablePannableImage`. The same pattern applies to both new features that require NSView bridging.
+**Domain:** Native macOS SwiftUI/AppKit — Image Cache + Filesystem Watchdog integration
+**Researched:** 2026-03-16
+**Confidence:** HIGH for cache placement and threading model; MEDIUM for DispatchSource directory watching event semantics (Apple docs require JavaScript, verified via community sources)
 
 ---
 
-## System Overview: After v1.4
+## Context: Existing Architecture (v1.4 baseline)
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        SwiftUI Layer                                 │
-├────────────────────────┬────────────────────────────────────────────┤
-│      Sidebar           │              DetailView                     │
-│  FolderNodeView        │  ZoomablePannableImage  │  NativeTextEditor │
-│  .contextMenu()        │  (existing NSViewRep)   │  (new NSViewRep)  │
-│  FileRow               │                         │                   │
-│  .contextMenu()        ├─────────────────────────┴───────────────────┤
-│                        │       .quickLookPreview($previewURL)        │
-├────────────────────────┴─────────────────────────────────────────────┤
-│                        AppKit Layer                                  │
-│  NSMenu (auto via     │  ZoomableImageNSView  │  NSTextView          │
-│  .contextMenu)         │  (existing)           │  (new)               │
-│                        │                       │  NSScrollView wrap   │
-│                        │  QLPreviewPanel        │                      │
-│                        │  (managed by SwiftUI   │                      │
-│                        │   .quickLookPreview)   │                      │
-├────────────────────────┴───────────────────────┴─────────────────────┤
-│                    DatasetViewModel (@MainActor)                      │
-│    pairs, selectedID, directoryURL — no new published state needed   │
-│    + previewURL: URL? (drives quickLookPreview binding)              │
-└─────────────────────────────────────────────────────────────────────┘
+ContentView (@StateObject vm: DatasetViewModel)
+  NavigationSplitView
+    ├── Sidebar (SwiftUI List)
+    │     ├── FolderTreeView → FolderNodeView (SwiftUI)
+    │     └── File rows (ForEach over vm.pairs)
+    └── DetailView
+          ├── ZoomablePannableImage (NSViewRepresentable → ZoomableImageNSView)
+          └── CaptionEditingContainer → CaptionEditorView (NSViewRepresentable → NSTextView)
+
+DatasetViewModel (@MainActor ObservableObject)
+  @Published: pairs, selectedID, folderTree, directoryURL, expandedPaths,
+              captionReloadToken, editingIsDirty
+  liveEditingText: String   (non-published, avoids per-keystroke renders)
+  securedDirectoryURL: URL? (security-scoped bookmark, kept active)
+
+Image loading (current):
+  ContentView.loadImageForSelection()
+    Task.detached { NSImage(contentsOf:) } → await MainActor.run { self.loadedImage = image }
+```
+
+Key constraint: `DatasetViewModel` is `@MainActor`. File I/O already happens on a detached task and hops back to main actor for assignment. The new cache and watchdog must fit cleanly into this threading model.
+
+---
+
+## System Overview: After v1.5
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           SwiftUI Layer                                  │
+│  ContentView                                                             │
+│    onChange(of: vm.selectedID) → triggers prefetch in DatasetViewModel  │
+│    loadedImage: NSImage? ← served from ImageCache (via vm method)       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                     DatasetViewModel (@MainActor)                        │
+│    selectedID.didSet → prefetch(around: selectedIndex)                  │
+│    loadImageForSelection() → ImageCache.image(for:) → assign loadedImage│
+│    handleFSEvent(at: URL) → rescan / reload caption / evict cache       │
+├──────────────────────────┬──────────────────────────────────────────────┤
+│      ImageCache           │          FilesystemWatchdog                  │
+│  (actor, separate class) │       (class, owns DispatchSource)           │
+│  NSCache<NSURL, NSImage>  │  DispatchSource on securedDirectoryURL      │
+│  prefetch(urls:)          │  .write eventMask (detects adds/dels/writes) │
+│  evict(url:)              │  → Task { @MainActor in vm.handleFSEvent() } │
+│  Memory pressure aware    │                                              │
+└──────────────────────────┴──────────────────────────────────────────────┘
 ```
 
 ---
@@ -59,332 +62,568 @@ The coordinator pattern is already established in `ZoomablePannableImage`. The s
 
 | Component | Status | Responsibility |
 |-----------|--------|----------------|
-| `ContentView` | Modify | Add `.quickLookPreview` modifier; wire keyboard shortcut for spacebar |
-| `FolderNodeView` | Modify | Add `.contextMenu` modifier with folder actions |
-| File row in sidebar `ForEach` | Modify | Add `.contextMenu` modifier with file actions |
-| `DetailView` | Modify | Replace `TextEditor` with `NativeTextEditor` |
-| `NativeTextEditor` | New | `NSViewRepresentable` wrapping `NSScrollView + NSTextView` |
-| `DatasetViewModel` | Modify | Add `previewURL: URL?` published property |
-
-No new view model is needed. No new coordinator pattern — re-use the established `NSViewRepresentable + Coordinator` approach from `ZoomablePannableImage`.
+| `ImageCache` | New | NSImage in-memory cache, prefetch queue, LRU eviction via NSCache, memory pressure response |
+| `FilesystemWatchdog` | New | DispatchSourceFileSystemObject on current directory; delivers typed events to DatasetViewModel via async callback |
+| `DatasetViewModel` | Modify | Owns ImageCache and FilesystemWatchdog instances; triggers prefetch on selection change; handles FS events |
+| `ContentView` | Modify (minor) | `loadImageForSelection()` asks ViewModel for image (from cache) instead of loading itself |
 
 ---
 
-## Feature 1: Finder Context Menus
+## Decision 1: Cache Placement — Separate Class, Owned by ViewModel
 
-### Integration Approach
+**Recommendation: `actor ImageCache` as a separate class, held by `DatasetViewModel`.**
 
-Use SwiftUI's native `.contextMenu` modifier — not raw `NSMenu`. SwiftUI internally creates the `NSMenu` for you on macOS. The native `.contextMenu` modifier is the correct approach for this codebase; reaching down to AppKit for menus would add complexity with no benefit.
+Rationale:
+- `DatasetViewModel` is `@MainActor`. NSImage loading is CPU/IO work — it must not block the main actor. An `actor ImageCache` runs on its own executor, keeping loading off the main thread.
+- Holding the cache instance inside `DatasetViewModel` (rather than a global singleton or environment object) keeps the lifecycle tied to the ViewModel. When the ViewModel deinits, the cache deinits. This avoids stale cache entries across directory changes — eviction is trivial: replace the cache object on `navigateToFolder()`.
+- The ViewModel coordinates prefetch (it knows selection index and `pairs` array), so it is the natural trigger site. The cache does not need to know about selection; it only answers "give me this image" and "prefetch these URLs."
 
-**Two surfaces need context menus:**
+**Rejected: Embedding NSCache directly in DatasetViewModel**
+DatasetViewModel is `@MainActor`. NSImage loading inside an `@MainActor` method would block the main thread. You cannot call `Task.detached` from within `@MainActor` and write back to a property on the same `@MainActor` instance without a hop — the detached task still needs `await MainActor.run {}`. An actor-isolated `ImageCache` makes the async boundary explicit and enforced by the compiler.
 
-**A. Folder rows** (`FolderNodeView`):
-```swift
-// In FolderNodeView.body, attach to the outer HStack
-.contextMenu {
-    Button("Reveal in Finder") { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: node.url.path) }
-    Button("Open in Terminal") { /* open Terminal at node.url */ }
-    Button("New Folder Here") { /* call vm method */ }
-}
-```
-
-**B. File rows** (the `ForEach` in `ContentView`'s sidebar):
-```swift
-// On the row HStack inside ForEach
-.contextMenu {
-    Button("Reveal in Finder") { NSWorkspace.shared.selectFile(pair.imageURL.path, inFileViewerRootedAtPath: "") }
-    Button("Quick Look") { vm.previewURL = pair.imageURL }
-    Button("Copy Path") { NSPasteboard.general.setString(pair.imageURL.path, forType: .string) }
-    Divider()
-    Button("Delete Caption", role: .destructive) { /* vm method */ }
-}
-```
-
-### Click Area Fix (Known Pitfall)
-
-SwiftUI's `.contextMenu` on List rows only activates on the text portion by default, not the full row width. Fix by ensuring rows use `.frame(maxWidth: .infinity, alignment: .leading)` and `.contentShape(Rectangle())`:
-
-```swift
-HStack(spacing: 4) { ... }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .contentShape(Rectangle())
-    .contextMenu { ... }
-```
-
-### What Changes
-
-| File | Change |
-|------|--------|
-| `ContentView.swift` | Add `.contextMenu` to file row `HStack` inside `ForEach` |
-| `ContentView.swift` | Add `.contextMenu` to `FolderNodeView.body` outer `HStack` |
-| `DatasetViewModel.swift` | Add action methods called by menu items (e.g., `revealInFinder`, `deleteCaption`) |
-
-No new files needed for context menus.
+**Rejected: Global singleton / environment object**
+Global cache survives directory changes. Stale NSImage for a path in a different dataset would be served on session restore. The lifecycle coupling to ViewModel avoids this silently.
 
 ---
 
-## Feature 2: Quick Look Preview
+## Decision 2: Watchdog Placement — Separate Class, Owned by ViewModel
 
-### Integration Approach
+**Recommendation: `class FilesystemWatchdog` (not an actor), held by `DatasetViewModel`.**
 
-Use SwiftUI's `.quickLookPreview($url)` modifier (available macOS 13+, HIGH confidence). This is the correct modern approach — it handles `QLPreviewPanel` lifecycle automatically and avoids the complexity of manually managing the panel and responder chain.
+Rationale:
+- `DispatchSourceFileSystemObject` is a GCD primitive. It cannot be used inside a Swift actor directly — actors do not provide a GCD queue you can pass to `DispatchSource.makeFileSystemObjectSource(fileDescriptor:eventMask:queue:)`. A plain class with a private `DispatchQueue` for the source is the correct pattern.
+- The watchdog delivers events to the ViewModel via an async closure that hops to `@MainActor`:
 
-**Data flow:**
-```
-User triggers (spacebar / context menu)
-    ↓
-vm.previewURL = pair.imageURL  (or nil to dismiss)
-    ↓
-.quickLookPreview($vm.previewURL) modifier observes the binding
-    ↓
-SwiftUI drives QLPreviewPanel open/close
-```
-
-### Keyboard Shortcut (Spacebar)
-
-SwiftUI's `.keyboardShortcut` cannot use bare spacebar (it defaults to ⌘ modifier). Use `.onKeyPress(.space)` (available macOS 14+) or attach the spacebar to a hidden Button with the shortcut — but the simplest approach is to add a `Button` to a `Commands` group or use `.focusedValue` to invoke the toggle.
-
-Recommended: Use a focusable view with `.onKeyPress`:
 ```swift
-// On the List or a wrapper that can receive focus
-.onKeyPress(.space) {
-    if let pair = vm.selectedPair {
-        vm.previewURL = (vm.previewURL == nil) ? pair.imageURL : nil
+source.setEventHandler {
+    Task { @MainActor in
+        self.viewModel?.handleFSEvent()
     }
-    return .handled
 }
 ```
 
-This requires the sidebar List to be focusable (it is by default in macOS sidebar context).
+This is the standard bridge between GCD callbacks and `@MainActor` Swift concurrency (verified: `Task { @MainActor in }` from a non-isolated context correctly dispatches to the main actor).
 
-### NSTextView Conflict (Critical Pitfall)
+- The watchdog watches one directory at a time. `DatasetViewModel.navigateToFolder()` stops the old watchdog and starts a new one pointed at the new directory.
 
-`NSTextView` has a private `quickLookPreviewableItemsInRanges:` method that intercepts the `QLPreviewPanel` responder chain while an NSTextView has focus. This means the panel may appear empty or fail to activate when focus is in the text editor.
+**What DispatchSource `.write` on a directory detects:**
+Watching a directory descriptor with `.write` eventMask fires when files are added, deleted, or renamed within that directory (directory entry changes). It does NOT fire for modifications to file content within the directory — content changes require watching the individual file descriptor. For the use case of detecting "a .txt/.caption file was externally modified" (e.g., by a training script writing captions), you need a separate source per caption file, or accept a polling fallback for content changes.
 
-**Resolution:** The `.quickLookPreview` modifier approach mitigates most of this, but if using a custom `NSTextView` (see Feature 3), the spacebar shortcut must be intercepted before the text view's keyDown handler gets it — or invoke the toggle via a SwiftUI mechanism that bypasses NSTextView's key handling. Since the spacebar is most naturally triggered from the sidebar (file list), not the text editor, this conflict is avoided by design: make the action available only when the sidebar is focused.
-
-### What Changes
-
-| File | Change |
-|------|--------|
-| `DatasetViewModel.swift` | Add `@Published var previewURL: URL? = nil` |
-| `ContentView.swift` | Add `.quickLookPreview($vm.previewURL)` to `NavigationSplitView` or `ContentView` body |
-| `ContentView.swift` | Add `.onKeyPress(.space)` to sidebar area |
-
-No new files needed for Quick Look.
+**Recommended approach for v1.5:**
+- Directory-level `.write` source: detects additions, deletions, renames → trigger `scanCurrentDirectory()` to refresh pairs list.
+- For detecting caption file content changes (a separate file was rewritten externally): watch the selected caption file's descriptor with `.write`. When it fires and the selected pair matches, reload caption text.
+- Do not watch all N caption files simultaneously — use a single file-level watcher that follows `vm.selectedID` changes.
 
 ---
 
-## Feature 3: Native NSTextView for Caption Editing
+## New Component Specifications
 
-### Integration Approach
-
-Replace `TextEditor` in `DetailView` with a new `NativeTextEditor: NSViewRepresentable` that wraps `NSTextView`. Follow the same coordinator pattern as `ZoomablePannableImage`.
-
-The NSTextView must be embedded in an `NSScrollView` to get scroll bars and proper text container layout — this is standard AppKit practice:
-
-```
-NativeTextEditor (NSViewRepresentable)
-  └── makeNSView → NSScrollView
-                     └── documentView = NSTextView
-                                         ├── isContinuousSpellCheckingEnabled = true
-                                         ├── isGrammarCheckingEnabled = true
-                                         ├── isAutomaticSpellingCorrectionEnabled = true
-                                         ├── isAutomaticDashSubstitutionEnabled = false  (LoRA captions don't want smart dashes)
-                                         ├── isAutomaticQuoteSubstitutionEnabled = false (same reason)
-                                         └── allowsUndo = true
-```
-
-### Coordinator Pattern
+### `actor ImageCache`
 
 ```swift
-class Coordinator: NSObject, NSTextViewDelegate {
-    var parent: NativeTextEditor
+actor ImageCache {
+    private let cache = NSCache<NSURL, NSImage>()
+    private var inFlight: [URL: Task<NSImage?, Never>] = [:]
 
-    func textDidChange(_ notification: Notification) {
-        guard let tv = notification.object as? NSTextView else { return }
-        // Only update if different — prevents feedback loops
-        if parent.text != tv.string {
-            parent.text = tv.string
+    init() {
+        cache.countLimit = 50          // images
+        cache.totalCostLimit = 200 * 1024 * 1024  // 200 MB
+    }
+
+    func image(for url: URL) async -> NSImage? {
+        if let hit = cache.object(forKey: url as NSURL) { return hit }
+        if let task = inFlight[url] { return await task.value }
+        let task = Task.detached(priority: .userInitiated) {
+            NSImage(contentsOf: url)
+        }
+        inFlight[url] = task
+        let result = await task.value
+        inFlight[url] = nil
+        if let img = result {
+            let cost = Int(img.size.width * img.size.height * 4)  // ~bytes
+            cache.setObject(img, forKey: url as NSURL, cost: cost)
+        }
+        return result
+    }
+
+    func prefetch(urls: [URL]) {
+        for url in urls {
+            guard cache.object(forKey: url as NSURL) == nil,
+                  inFlight[url] == nil else { continue }
+            let task = Task.detached(priority: .background) {
+                NSImage(contentsOf: url)
+            }
+            inFlight[url] = task
+            Task {
+                let result = await task.value
+                inFlight[url] = nil
+                if let img = result {
+                    let cost = Int(img.size.width * img.size.height * 4)
+                    cache.setObject(img, forKey: url as NSURL, cost: cost)
+                }
+            }
+        }
+    }
+
+    func evict(url: URL) {
+        cache.removeObject(forKey: url as NSURL)
+        inFlight[url]?.cancel()
+        inFlight[url] = nil
+    }
+
+    func evictAll() {
+        cache.removeAllObjects()
+        inFlight.values.forEach { $0.cancel() }
+        inFlight.removeAll()
+    }
+}
+```
+
+**Memory pressure:** NSCache handles this automatically. When the system signals memory pressure, NSCache evicts objects before the app receives a memory warning. Setting `totalCostLimit` (bytes) is more precise than `countLimit` (object count) for variable-size images. Use both: `countLimit` as a safety cap on object count, `totalCostLimit` as the memory budget.
+
+**In-flight deduplication:** The `inFlight` dictionary prevents two callers from loading the same URL concurrently. The second caller awaits the same Task. This is critical during prefetch — if the user navigates quickly, the cache-miss path for the selected image is already in flight from prefetch.
+
+**Thread safety:** Because `ImageCache` is an `actor`, all properties (`cache`, `inFlight`) are actor-isolated. NSCache itself is thread-safe, but the combined cache+inFlight check must be atomic — the actor boundary provides that atomicity.
+
+---
+
+### `class FilesystemWatchdog`
+
+```swift
+final class FilesystemWatchdog {
+    private var dirSource: DispatchSourceFileSystemObject?
+    private var fileSource: DispatchSourceFileSystemObject?
+    private var dirDescriptor: Int32 = -1
+    private var fileDescriptor: Int32 = -1
+    private let queue = DispatchQueue(label: "com.lora-dataset.fswatchdog",
+                                      qos: .utility)
+
+    var onDirectoryChanged: (() -> Void)?       // fires on add/delete/rename
+    var onSelectedFileChanged: (() -> Void)?    // fires when watched caption changes
+
+    func watchDirectory(_ url: URL) {
+        stopDirectory()
+        dirDescriptor = open(url.path, O_EVTONLY)
+        guard dirDescriptor >= 0 else { return }
+        let src = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: dirDescriptor,
+            eventMask: .write,     // directory write = entries added/deleted/renamed
+            queue: queue
+        )
+        src.setEventHandler { [weak self] in
+            self?.onDirectoryChanged?()
+        }
+        src.setCancelHandler { [weak self] in
+            if let fd = self?.dirDescriptor, fd >= 0 { close(fd) }
+            self?.dirDescriptor = -1
+        }
+        src.resume()
+        dirSource = src
+    }
+
+    func watchFile(_ url: URL) {
+        stopFile()
+        fileDescriptor = open(url.path, O_EVTONLY)
+        guard fileDescriptor >= 0 else { return }
+        let src = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fileDescriptor,
+            eventMask: [.write, .delete, .rename],
+            queue: queue
+        )
+        src.setEventHandler { [weak self] in
+            self?.onSelectedFileChanged?()
+        }
+        src.setCancelHandler { [weak self] in
+            if let fd = self?.fileDescriptor, fd >= 0 { close(fd) }
+            self?.fileDescriptor = -1
+        }
+        src.resume()
+        fileSource = src
+    }
+
+    func stopDirectory() {
+        dirSource?.cancel()
+        dirSource = nil
+    }
+
+    func stopFile() {
+        fileSource?.cancel()
+        fileSource = nil
+    }
+
+    func stop() { stopDirectory(); stopFile() }
+
+    deinit { stop() }
+}
+```
+
+**O_EVTONLY flag:** Opens the path for event-only notification. Does not hold the file open for reading/writing. This is correct for monitoring — prevents the app from blocking filesystem operations (e.g., the volume cannot be unmounted while a regular file descriptor is open).
+
+**eventMask `.write` on a directory:** Fires when directory entries change (files added, deleted, renamed within that directory). Does NOT fire for modifications to file content inside the directory. This is the correct mask for detecting "a new image appeared" or "a caption was deleted."
+
+**eventMask `[.write, .delete, .rename]` on a file:** Covers external editors that write via temp file + rename (atomic write pattern), direct writes, and deletion. This covers most editors including training scripts.
+
+---
+
+## Changes to DatasetViewModel
+
+### New Properties
+
+```swift
+// Cache — replaced on directory change
+private let imageCache = ImageCache()
+
+// Watchdog — two-level: directory structure + selected file content
+private let watchdog = FilesystemWatchdog()
+```
+
+### Modified: selectedID.didSet — Prefetch Trigger
+
+```swift
+@Published var selectedID: UUID? = nil {
+    didSet {
+        UserDefaults.standard.set(selectedPair?.imageURL.path,
+                                  forKey: "lastSelectedImagePath")
+        updateQuickLookIfVisible()
+        triggerPrefetch()          // NEW
+        watchSelectedCaptionFile() // NEW
+    }
+}
+```
+
+### New Method: triggerPrefetch
+
+```swift
+private func triggerPrefetch() {
+    guard let id = selectedID,
+          let idx = pairs.firstIndex(where: { $0.id == id }) else { return }
+
+    // Prefetch 2 images ahead and 1 behind
+    let range = max(0, idx - 1)...min(pairs.count - 1, idx + 2)
+    let urlsToCache = range
+        .filter { $0 != idx }  // skip selected — it's loaded immediately
+        .map { pairs[$0].imageURL }
+
+    Task {
+        await imageCache.prefetch(urls: urlsToCache)
+    }
+}
+```
+
+**Window size rationale:** 2 ahead + 1 behind matches the pattern of linear dataset review. The selected image is loaded immediately (not via prefetch). Background priority keeps prefetch from competing with the selected image load.
+
+### New Method: loadImage (replaces ContentView logic)
+
+Move image loading responsibility from ContentView into the ViewModel so it can use the cache:
+
+```swift
+func loadImage(for pair: ImageCaptionPair) async -> NSImage? {
+    return await imageCache.image(for: pair.imageURL)
+}
+```
+
+ContentView's `loadImageForSelection()` becomes:
+
+```swift
+private func loadImageForSelection() {
+    imageScale = 1.0
+    imageOffset = .zero
+    guard let id = selectedFileID,
+          let pair = vm.pairs.first(where: { $0.id == id }) else {
+        loadedImage = nil
+        return
+    }
+    Task {
+        let image = await vm.loadImage(for: pair)
+        await MainActor.run {
+            guard self.selectedFileID == id else { return }
+            self.loadedImage = image
         }
     }
 }
 ```
 
-**Critical:** In `updateNSView`, guard against overwriting the NSTextView's string while the user is typing — check if the value changed externally before setting:
+The `Task` here (without `.detached`) inherits the actor context of `ContentView` (which is `@MainActor`). Calling `vm.loadImage(for:)` suspends and hops to the `ImageCache` actor automatically. This is correct structured concurrency.
+
+### New Method: watchSelectedCaptionFile
 
 ```swift
-func updateNSView(_ nsView: NSScrollView, context: Context) {
-    guard let tv = nsView.documentView as? NSTextView else { return }
-    // Only update from outside if text differs (avoid cursor reset mid-typing)
-    if tv.string != text {
-        tv.string = text
+private func watchSelectedCaptionFile() {
+    guard let pair = selectedPair else {
+        watchdog.stopFile()
+        return
+    }
+    watchdog.watchFile(pair.captionURL)
+    watchdog.onSelectedFileChanged = { [weak self] in
+        Task { @MainActor [weak self] in
+            self?.reloadCaptionForSelected()
+        }
     }
 }
 ```
 
-This mirrors the `isUpdatingProgrammatically` pattern already used in `ZoomableImageNSView`.
+### Modified: chooseDirectory / navigateToFolder — Start Watchdog
 
-### Undo Manager
-
-NSTextView has built-in undo support. However, SwiftUI's environment undo manager may conflict. Set `textView.allowsUndo = true` and do not pass SwiftUI's `undoManager` — let NSTextView manage its own undo stack. This is standard for NSViewRepresentable text views.
-
-### Binding to ViewModel
-
-The `TextEditor` currently binds via:
 ```swift
-TextEditor(text: Binding(
-    get: { vm.pairs[idx].captionText },
-    set: { vm.pairs[idx].captionText = $0 }
-))
+// After scanning:
+imageCache.evictAll()  // clear cache on directory change
+watchdog.watchDirectory(folder)
+watchdog.onDirectoryChanged = { [weak self] in
+    Task { @MainActor [weak self] in
+        self?.scanCurrentDirectory()
+    }
+}
 ```
 
-`NativeTextEditor` takes the same `Binding<String>`. No ViewModel changes needed.
+**Evicting on directory change** prevents serving stale images from a previous folder if paths happen to collide across datasets.
 
-### What Changes
+### Modified: saveSelected — Suppress Watchdog Loop
 
-| File | Change |
-|------|--------|
-| `NativeTextEditor.swift` | New file — `NSViewRepresentable` wrapping NSScrollView + NSTextView |
-| `ContentView.swift` → `DetailView` | Replace `TextEditor(...)` with `NativeTextEditor(text: ...)` |
+After saving a caption, the watchdog will fire (the file was written). This would trigger `reloadCaptionForSelected()` unnecessarily and lose the dirty state check. Suppress:
+
+```swift
+func saveSelected() {
+    watchdog.stopFile()      // suppress the FS event from our own write
+    defer {
+        watchdog.watchFile(selectedPair?.captionURL ?? URL(fileURLWithPath: ""))
+    }
+    // ... existing save logic ...
+}
+```
+
+Alternatively: add a `isSaving: Bool` flag and guard in `onSelectedFileChanged`. Either approach works; the `stopFile/resume` approach is simpler and has no race conditions because all of this runs on `@MainActor`.
 
 ---
 
-## Data Flow Changes
-
-### New State in DatasetViewModel
+## Data Flow: Image Load with Cache
 
 ```
-@Published var previewURL: URL? = nil   // drives .quickLookPreview
+User presses arrow key / clicks sidebar item
+    ↓
+ContentView.onChange(of: selectedFileID)
+    ↓
+vm.selectedID = selectedFileID  (@MainActor)
+    ↓
+selectedID.didSet fires (on @MainActor)
+    ├── triggerPrefetch() — Task { await imageCache.prefetch(neighbor URLs) }
+    └── watchSelectedCaptionFile() — watchdog points to new caption file
+    ↓
+ContentView.loadImageForSelection()
+    ↓
+Task { let img = await vm.loadImage(for: pair) }
+    ↓ (suspends, hops to ImageCache actor)
+ImageCache.image(for: url)
+    ├── Cache HIT → return NSImage immediately (sub-millisecond)
+    └── Cache MISS → Task.detached { NSImage(contentsOf:) } → store → return
+    ↓ (hops back to @MainActor)
+self.loadedImage = img  → DetailView re-renders with new image
 ```
 
-All other state remains unchanged. Context menus call existing ViewModel methods or call `NSWorkspace` directly from the view (acceptable for pure presentation actions like Reveal in Finder).
+---
 
-### Updated Selection Data Flow
+## Data Flow: Filesystem Event
 
-The existing selection → image load flow is unchanged. Quick Look previews the `imageURL` of the selected pair:
 ```
-selectedID changes → loadImageForSelection() → vm.previewURL set by user action (not automatically)
+External process modifies caption file (e.g., training script)
+    ↓
+DispatchSourceFileSystemObject fires (.write on caption file descriptor)
+    ↓  [on watchdog's DispatchQueue (utility QoS)]
+onSelectedFileChanged closure
+    ↓
+Task { @MainActor in vm.reloadCaptionForSelected() }
+    ↓  [hops to main actor]
+reloadCaptionForSelected() → reads file → updates pairs[idx] → increments captionReloadToken
+    ↓
+CaptionEditingContainer.onChange(of: vm.captionReloadToken) → syncFromVM()
+    ↓
+NSTextView displays updated caption
 ```
 
-Quick Look is an explicit user action, not an automatic side effect of selection. This keeps the data flow clean.
+```
+External process adds/removes image file in watched directory
+    ↓
+DispatchSourceFileSystemObject fires (.write on directory descriptor)
+    ↓  [on watchdog's DispatchQueue]
+onDirectoryChanged closure
+    ↓
+Task { @MainActor in vm.scanCurrentDirectory() }
+    ↓
+scanCurrentDirectory() → pairs refreshed → UI updates
+```
 
 ---
 
 ## Architectural Patterns
 
-### Pattern 1: NSViewRepresentable + Coordinator (Existing, Extended)
+### Pattern 1: Actor-Isolated Cache with In-Flight Deduplication
 
-**What:** A SwiftUI struct bridges to an AppKit NSView. A Coordinator class holds delegate references and funnels AppKit callbacks back to SwiftUI bindings.
+**What:** `ImageCache` is a Swift `actor`. Cache lookups and stores are actor-isolated. A `[URL: Task<NSImage?, Never>]` dictionary deduplicates concurrent requests for the same URL.
 
-**When to use:** When AppKit provides capabilities SwiftUI does not (rich text editing, custom drawing, zoom/pan). Already in use for `ZoomablePannableImage`.
+**When to use:** Any shared mutable state accessed from multiple async contexts. The `actor` keyword enforces this automatically — no explicit locking needed.
 
-**NativeTextEditor follows exactly this pattern.** No deviation.
+**Trade-offs:** Small overhead vs. NSLock-based class. The overhead is negligible for image loading where I/O dominates. The compiler-enforced safety is worth the minor performance cost.
 
-**Trade-offs:** More boilerplate than TextEditor; gains full NSTextView feature set (spell check, grammar, dictionary lookup, services menu, undo, accessibility).
+### Pattern 2: GCD → @MainActor Bridge
 
-### Pattern 2: SwiftUI Modifier Wrappers for AppKit Features
+**What:** DispatchSource callbacks (GCD) are delivered on a background DispatchQueue. Bridge to `@MainActor` via `Task { @MainActor in ... }` from within the GCD handler.
 
-**What:** Use SwiftUI modifiers (`.contextMenu`, `.quickLookPreview`) instead of reaching down to AppKit APIs directly.
+**When to use:** Any time a system callback (GCD, completion handler, delegate) needs to update `@MainActor`-isolated state.
 
-**When to use:** When Apple provides a SwiftUI-native bridge to an AppKit concept. Prefer this over creating custom NSViewRepresentable wrappers for panel/menu management.
+**Trade-offs:** `Task { @MainActor in }` enqueues asynchronously — it does not execute synchronously when the GCD handler fires. This means there is a small delay (one run-loop iteration) between the FS event and the UI update. Acceptable for filesystem notifications, which have inherently high latency anyway (event coalescing by the OS).
 
-**Trade-offs:** Less control, but far less complexity. The `.quickLookPreview` modifier handles QLPreviewPanel lifecycle, responder chain registration, and panel creation automatically.
+**Example:**
+```swift
+source.setEventHandler { [weak self] in
+    // This closure runs on watchdog's DispatchQueue
+    Task { @MainActor [weak self] in
+        // This block runs on main actor
+        self?.viewModel?.handleFSEvent()
+    }
+}
+```
 
-### Pattern 3: ViewModel Actions for Menu Items
+### Pattern 3: Watchdog Suppression on Self-Write
 
-**What:** Context menu `Button` closures call `DatasetViewModel` methods rather than calling file system APIs directly.
+**What:** Before writing a file that the watchdog monitors, temporarily stop the file watcher. Resume after the write (via `defer` or explicit call).
 
-**When to use:** For any action that mutates app state or touches the file system (delete, rename, create). Call `NSWorkspace` directly only for pure OS delegation (Reveal in Finder, Open in Terminal) that does not mutate app state.
+**When to use:** Any time the app writes to a file it is also watching. Prevents a feedback loop where the app's own save triggers a reload.
+
+**Trade-offs:** Between `stopFile()` and the deferred `watchFile()`, an external write would be missed. The window is tiny (the time to write a small text file). Acceptable for caption files.
+
+---
+
+## File Structure Changes
+
+```
+lora-dataset/lora-dataset/
+├── DatasetViewModel.swift       # Modified: cache/watchdog integration
+├── ContentView.swift            # Modified: loadImageForSelection uses cache
+├── ImageCache.swift             # NEW: actor ImageCache
+├── FilesystemWatchdog.swift     # NEW: class FilesystemWatchdog
+├── ImageCaptionPair.swift       # Unchanged
+├── ZoomablePannableImage.swift  # Unchanged
+├── CaptionEditorView.swift      # Unchanged
+├── QLPreviewHelper.swift        # Unchanged
+└── lora_datasetApp.swift        # Unchanged
+```
 
 ---
 
 ## Build Order
 
-Dependencies between features determine this order:
+Build order is determined by dependency chain:
 
 ```
-1. NativeTextEditor (NSViewRepresentable)
-   No dependencies on other v1.4 features.
-   Self-contained. Replace TextEditor in DetailView.
+1. ImageCache.swift  (standalone actor, no dependencies)
+   - No imports of app types needed
+   - Can be built and unit-tested in isolation
 
-2. Context Menus
-   Depends on: ViewModel having action methods.
-   No dependency on NativeTextEditor or Quick Look.
-   Add .contextMenu to FolderNodeView and file rows.
+2. FilesystemWatchdog.swift  (standalone class, no dependencies on app types)
+   - Depends only on Foundation/Dispatch
+   - Can be tested with real directories
 
-3. Quick Look Preview
-   Depends on: vm.previewURL property (added in step 2 or standalone).
-   Has interaction with NativeTextEditor focus — build last so the
-   NSTextView/QLPreviewPanel conflict can be tested and handled.
+3. DatasetViewModel.swift  (depends on ImageCache + FilesystemWatchdog)
+   - Add cache and watchdog properties
+   - Add triggerPrefetch(), watchSelectedCaptionFile(), handleFSEvent()
+   - Modify navigateToFolder() and chooseDirectory() to start watchdog
+   - Modify saveSelected() to suppress watchdog during write
+
+4. ContentView.swift  (depends on updated DatasetViewModel API)
+   - Update loadImageForSelection() to call vm.loadImage(for:)
+   - Minimal change: the async/await structure is already present
 ```
 
-Build NativeTextEditor first because it is purely additive (replaces existing component) and has no interactions with the other two features. Context menus are second because they are also self-contained and establish `vm.previewURL`. Quick Look goes last because it requires testing the spacebar+NSTextView focus interaction.
+Dependencies flow strictly downward. Steps 1 and 2 have no cross-dependency and can be written in parallel.
 
 ---
 
 ## Integration Points Summary
 
-| New Feature | New Files | Modified Files | ViewModel Changes |
-|-------------|-----------|----------------|-------------------|
-| Context Menus | None | `ContentView.swift` (2 views) | Add action methods |
-| Quick Look | None | `ContentView.swift`, `DatasetViewModel.swift` | Add `previewURL: URL?` |
-| NSTextView Editor | `NativeTextEditor.swift` | `ContentView.swift` (DetailView) | None |
+| What | New or Modified | Key Change |
+|------|----------------|------------|
+| `ImageCache.swift` | New | Actor-isolated NSCache + in-flight deduplication |
+| `FilesystemWatchdog.swift` | New | DispatchSource wrapper; delivers events via async closures |
+| `DatasetViewModel.swift` | Modified | Owns cache + watchdog; triggers prefetch on selectedID change |
+| `ContentView.swift` | Modified (minor) | `loadImageForSelection()` uses async cache lookup |
 
-Total new files: **1**
-Total modified files: **2** (`ContentView.swift`, `DatasetViewModel.swift`)
+Total new files: **2**
+Total modified files: **2** (`DatasetViewModel.swift`, `ContentView.swift`)
 
 ---
 
 ## Anti-Patterns
 
-### Anti-Pattern 1: Manual NSMenu Construction
+### Anti-Pattern 1: Embedding Loading Logic Inside @MainActor ViewModel
 
-**What people do:** Create `NSMenu` and `NSMenuItem` instances manually, attach to `NSView.menu`, and manage display manually.
+**What people do:** Call `NSImage(contentsOf:)` directly inside a `@MainActor` method.
 
-**Why it's wrong:** Bypasses SwiftUI's declarative model. Requires an NSViewRepresentable wrapper just to attach a menu. Loses automatic accessibility, keyboard navigation, and system services integration that `.contextMenu` provides for free.
+**Why it's wrong:** Blocks the main thread during image decode. For large PNG/TIFF files this is 100ms+. UI freezes during navigation.
 
-**Do this instead:** Use `.contextMenu { Button(...) }` on SwiftUI views. SwiftUI translates this to a proper NSMenu internally.
+**Do this instead:** Load inside an `actor` method that suspends (runs on actor's background executor) or use `Task.detached(priority:)`. The `ImageCache` actor pattern handles this automatically.
 
-### Anti-Pattern 2: Manual QLPreviewPanel Lifecycle
+### Anti-Pattern 2: Watching Individual Files for All Pairs
 
-**What people do:** Implement `QLPreviewPanelDataSource` / `QLPreviewPanelDelegate`, manage `acceptsPreviewPanelControl()`, `beginPreviewPanelControl()`, `endPreviewPanelControl()` — the full legacy AppKit pattern.
+**What people do:** Create one `DispatchSourceFileSystemObject` per image/caption file to detect any change.
 
-**Why it's wrong:** This is 15+ lines of boilerplate dealing with a singleton panel and responder chain traversal. The `.quickLookPreview` modifier handles all of this automatically since macOS 13.
+**Why it's wrong:** A dataset folder with 500 images would open 1000+ file descriptors simultaneously. macOS per-process file descriptor limits are typically 10,240 by default, but opening this many for event-only purposes is wasteful and may interfere with normal file operations.
 
-**Do this instead:** Add `@Published var previewURL: URL?` to the ViewModel and `.quickLookPreview($vm.previewURL)` to the view. Done.
+**Do this instead:** Watch the directory with `.write` (one descriptor) for structural changes. Watch only the selected caption file (one descriptor) for content changes. Total: 2 descriptors.
 
-### Anti-Pattern 3: Wrapping TextEditor to Fix Spell Check
+### Anti-Pattern 3: Using Task.detached Inside @MainActor ViewModel for Cache Access
 
-**What people do:** Access the private NSTextView inside SwiftUI's TextEditor using `introspect` libraries or view hierarchy traversal.
+**What people do:** `Task.detached { let img = await cache.image(for:) }` from a `@MainActor` context.
 
-**Why it's wrong:** Fragile — private APIs break without notice. Multiple Apple Developer Forum posts confirm `isContinuousSpellCheckingEnabled` gets reset to `false` unpredictably when set this way.
+**Why it's wrong:** `Task.detached` loses the task's priority and cancellation token. The detached task is not cancelled if the user navigates away before the image loads. Result: stale image delivered after selection has changed.
 
-**Do this instead:** Own the NSTextView directly via NSViewRepresentable. Set properties in `makeNSView` where they are set once and owned by your code.
+**Do this instead:** Use `Task { }` (inheriting actor context), which propagates cancellation. Guard against stale delivery with `guard self.selectedFileID == id else { return }` inside `MainActor.run`.
 
-### Anti-Pattern 4: Updating NSTextView String on Every Render
+### Anti-Pattern 4: Recreating DispatchSource on Every Selection Change
 
-**What people do:** In `updateNSView`, unconditionally assign `textView.string = text`.
+**What people do:** Cancel and recreate the directory-level DispatchSource whenever `selectedID` changes.
 
-**Why it's wrong:** Resets the cursor position and selection state every time SwiftUI re-renders, which happens frequently. The user's cursor jumps while typing.
+**Why it's wrong:** The directory watcher should persist across selection changes — the directory hasn't changed, just the selected file. Unnecessary cancel/resume cycles add overhead and may miss events fired during the recreation window.
 
-**Do this instead:** Guard with `if tv.string != text { tv.string = text }` — only update when the source of truth changed externally (e.g., when user clicks Reload Caption).
+**Do this instead:** The directory watcher lives for the duration of a folder being active. Only the file watcher (for caption content) is recreated on each selection change.
+
+### Anti-Pattern 5: Not Handling the Self-Write Echo
+
+**What people do:** Save a caption, then ignore the FS event that fires from that write.
+
+**Why it's wrong:** `reloadCaptionForSelected()` will run immediately after save, overwriting the in-memory state. If `captionText` was modified after save (edge case), it would be lost. Even without that edge case, the reload is a wasted file read that fires `captionReloadToken`, causing `CaptionEditingContainer` to re-sync unnecessarily.
+
+**Do this instead:** Stop the file watcher before save, restart after (with `defer`). The suppression window is bounded by the write operation itself.
+
+---
+
+## Scaling Considerations
+
+This is a single-user desktop app. "Scaling" means handling larger datasets gracefully.
+
+| Dataset Size | Current Behavior | With v1.5 Cache |
+|--------------|-----------------|-----------------|
+| 50 images | Fast (small files) | Instant (all cached quickly) |
+| 500 images | Acceptable (load on demand) | Instant for neighbors; misses amortized |
+| 5,000 images | Load lag on each navigation step | Same — only 3 images cached around selection |
+| 50,000 images | Same (no directory-level lag change) | Same; NSCache evicts old entries automatically |
+
+NSCache with `countLimit = 50` and `totalCostLimit = 200 MB` keeps memory bounded regardless of dataset size. The prefetch window of ±2 images means "next image" is nearly always a cache hit.
 
 ---
 
 ## Sources
 
-- [SwiftUI contextMenu(forSelectionType:menu:primaryAction:) — SerialCoder.dev](https://serialcoder.dev/text-tutorials/swiftui/enabling-selection-double-click-and-context-menus-in-swiftui-list-on-macos/)
-- [NSTextView/QLPreviewPanel responder chain conflict — Michael Berk](https://mberk.com/posts/QuickLook+TextViewTrouble/)
-- [QLPreviewPanel responder chain pattern with NSTableView — DevGypsy](https://devgypsy.com/post/2023-06-06-quicklook-swift-tableview/)
-- [quickLookPreview SwiftUI modifier — Daniel Saidi](https://danielsaidi.com/blog/2022/06/27/using-quicklook-with-swiftui/)
-- [MacEditorTextView NSViewRepresentable reference implementation — unnamedd/GitHub Gist](https://gist.github.com/unnamedd/6e8c3fbc806b8deb60fa65d6b9affab0)
-- [NSTextView in SwiftUI coordinator pattern — Blue Lemon Bits](https://bluelemonbits.com/2021/11/14/using-nstextview-in-swiftui/)
-- [Context menu click area fix for macOS List — Cocoa Switch](https://www.cocoaswitch.com/2023/12/09/small-click-areas.html)
-- [quickLookPreview(_:) — Apple Developer Documentation](https://developer.apple.com/documentation/swiftui/view/quicklookpreview(_:))
-- [isContinuousSpellCheckingEnabled — Apple Developer Documentation](https://developer.apple.com/documentation/appkit/nstextview/iscontinuousspellcheckingenabled)
-- [Including Services in contextual menus — Wade Tregaskis](https://wadetregaskis.com/including-services-in-contextual-menus-in-swiftui/)
+- [DispatchSource: Detecting changes in files and folders in Swift — SwiftRocks](https://swiftrocks.com/dispatchsource-detecting-changes-in-files-and-folders-in-swift)
+- [Monitoring a folder for changes in iOS — Daniel Galasko / Medium](https://medium.com/over-engineering/monitoring-a-folder-for-changes-in-ios-dc3f8614f902)
+- [DispatchSourceFileSystemObject — Apple Developer Documentation](https://developer.apple.com/documentation/dispatch/dispatchsourcefilesystemobject)
+- [Monitoring Files Using Dispatch Sources — agostini.tech](https://agostini.tech/2017/08/06/monitoring-files-using-dispatch-sources/)
+- [Reacting to File Changes — SwiftToolkit.dev](https://www.swifttoolkit.dev/posts/file-monitor)
+- [Reusable Image Cache in Swift — On Swift Wings](https://www.onswiftwings.com/posts/reusable-image-cache/)
+- [NSCache — Apple Developer Documentation](https://developer.apple.com/documentation/foundation/nscache)
+- [MainActor usage in Swift — SwiftLee](https://www.avanderlee.com/swift/mainactor-dispatch-main-thread/)
+- [Thread dispatching and Actors — SwiftLee](https://www.avanderlee.com/concurrency/thread-dispatching-actor-execution/)
+- [Structured caching in an actor — Swift Forums](https://forums.swift.org/t/structured-caching-in-an-actor/65501)
+- [How the Swift compiler knows DispatchQueue.main implies @MainActor — Ole Begemann](https://oleb.net/2024/dispatchqueue-mainactor/)
 
 ---
-*Architecture research for: LoRA Dataset Browser — v1.4 Native OS Integration*
-*Researched: 2026-03-15*
+*Architecture research for: LoRA Dataset Browser — v1.5 Performance & Live Sync*
+*Researched: 2026-03-16*

@@ -1,14 +1,14 @@
 # Stack Research
 
-**Domain:** macOS native OS integration — Finder context menus, Quick Look panel, full NSTextView
-**Researched:** 2026-03-15
-**Confidence:** MEDIUM (APIs verified via official docs and 2023-2024 community sources; one known limitation with grammar checking depth)
+**Domain:** macOS performance — image/caption caching with LRU eviction, prefetch, and filesystem watchdog
+**Researched:** 2026-03-16
+**Confidence:** HIGH (all APIs are Apple-native, stable, and verified against official documentation and multiple implementation sources)
 
 ---
 
 ## Scope
 
-This is a **subsequent milestone** research file. Only stack additions and changes for v1.4 features are documented here. The existing validated base (SwiftUI + AppKit, NSViewRepresentable, MVVM, security-scoped bookmarks) is not re-litigated.
+This is a **subsequent milestone** research file for v1.5. Only stack additions needed for image caching, caption caching, prefetch, and filesystem monitoring are documented here. The existing validated base (SwiftUI + AppKit, NSViewRepresentable, MVVM, @MainActor ViewModel, security-scoped bookmarks, Task.detached image loading) is not re-litigated.
 
 ---
 
@@ -18,140 +18,170 @@ This is a **subsequent milestone** research file. Only stack additions and chang
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| `QuickLookUI` framework | macOS built-in | QLPreviewPanel integration | The only official API for the floating Quick Look panel on macOS. No third-party alternative exists for this native panel. |
-| `NSTextView` (AppKit) | macOS built-in | Full-featured text editing | Required to unlock spell check, grammar check, system dictionary lookup, and language detection — features unavailable in SwiftUI's `TextEditor`. |
-| SwiftUI `.contextMenu` modifier | macOS 12+ | Right-click context menus on sidebar rows | Native SwiftUI. Sufficient for "Reveal in Finder", "Open with", and custom app actions. No AppKit required for the menu itself. |
+| `NSCache<NSString, NSImage>` | macOS built-in | In-memory image cache with automatic memory-pressure eviction | Thread-safe, integrates with OS memory pressure system, zero dependencies. Appropriate for this use case where losing the cache is acceptable — the image is still on disk. The unpredictable eviction order is a non-issue here because all cache misses just reload from disk. |
+| `CGImageSource` (ImageIO) | macOS built-in | Thumbnail generation and lazy image decoding | 4–40x faster than `NSImage(contentsOf:)` depending on format. Decodes only to the display size needed, not the full raster. Required for prefetch to be memory-efficient. Already available — ImageIO is part of Core Graphics, no new framework import needed. |
+| `DispatchSource.makeFileSystemObjectSource` | macOS built-in | Directory watchdog for file additions, deletions, and external caption edits | The right tool for watching a single flat directory. FSEvents is heavier and harder to call from Swift — it targets entire hierarchies. DispatchSource VNODE + `.write` mask fires on directory-level changes (new files, deletions, renames) with no extra dependencies. |
+| `DispatchSource.makeMemoryPressureSource` | macOS 10.9+ built-in | Cache eviction trigger under system memory pressure | Provides `.warning` and `.critical` events so the cache can proactively clear before NSCache's own automatic eviction fires. Supplements NSCache's built-in behavior with explicit control at known pressure points. |
 
 ### Supporting APIs
 
 | API / Class | Framework | Purpose | When to Use |
 |-------------|-----------|---------|-------------|
-| `QLPreviewPanel.shared()` | QuickLookUI | Singleton panel showing file preview | Toggle on spacebar press from sidebar or file list |
-| `QLPreviewPanelDataSource` | QuickLookUI | Provide URLs to the panel | Implement on the window controller / NSResponder in the responder chain |
-| `QLPreviewPanelDelegate` | QuickLookUI | Source frame for zoom animation | Optional but improves animation quality |
-| `NSTextView` | AppKit | Replaces `TextEditor` | Wrap in `NSViewRepresentable` — same pattern as `ZoomablePannableImage` |
-| `NSTextViewDelegate` | AppKit | Receive text change callbacks | Used in Coordinator, replaces `Binding<String>` in TextEditor |
-| `NSScrollView` | AppKit | Required container for NSTextView | NSTextView must be embedded in an NSScrollView for correct sizing |
-| `NSWorkspace.shared.activateFileViewerSelecting(_:)` | AppKit | Reveal file in Finder | Use in context menu "Reveal in Finder" action |
-| `NSWorkspace.shared.open(_:)` | AppKit | Open file with default app | Use in context menu "Open with Default App" action |
+| `CGImageSourceCreateWithURL(_:_:)` | ImageIO | Create a lazy image source from a file URL | Use in prefetch path — creates source without decoding pixels |
+| `CGImageSourceCreateThumbnailAtIndex(_:_:_:)` | ImageIO | Generate a pixel-decoded thumbnail at display size | Call with `kCGImageSourceShouldCacheImmediately: true` to force decode on the background thread during prefetch |
+| `NSImage(cgImage:size:)` | AppKit | Wrap a decoded `CGImage` into an `NSImage` for the existing ZoomablePannableImage | Bridge from ImageIO path back to the NSImage the view layer expects |
+| `open(path, O_EVTONLY)` | POSIX / Darwin | Open a directory file descriptor for event-only monitoring | Required argument for `makeFileSystemObjectSource`. The `O_EVTONLY` flag avoids blocking unmount of the volume. Must be closed in the cancel handler. |
+| `FileManager.default.contentsOfDirectory` | Foundation | Re-scan directory after watchdog fires | Already used in `scanCurrentDirectory()` — watchdog just triggers a re-scan |
 
 ### Development Tools
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| Xcode Interface Builder (optional) | Connecting window controller responder | QLPreviewPanel responder chain works without IB — Swift extension on `NSViewController` suffices |
+| Xcode Memory Graph Debugger | Verify NSCache releases entries under simulated memory pressure | Use Debug → Memory Graph; also use `malloc_zone_statistics` in lldb to spot leaks in the cache layer |
+| Instruments → Allocations template | Profile peak RSS during prefetch | Confirm that full-resolution images are not being decoded during prefetch — only thumbnails or the final display size |
 
 ---
 
 ## Integration Points with Existing Code
 
-### 1. Quick Look — QLPreviewPanel
+### 1. Image Cache — NSCache wrapping NSImage
 
-**How it works:** QLPreviewPanel walks the NSResponder chain asking each responder `acceptsPreviewPanelControl(_:)`. The first responder returning `true` takes ownership and configures the panel via `beginPreviewPanelControl(_:)`.
+**Where it lives:** New `ImageCache` actor or a plain `final class` owned by `DatasetViewModel`.
 
-**Where to integrate:** Add a Swift extension on the existing `ContentView`'s hosting `NSWindowController`, or more pragmatically, create an `NSViewController` subclass using `NSViewControllerRepresentable` and put the responder chain methods there. The simplest path is adding the three methods to the `AppDelegate` or a dedicated `QLController` object that is inserted into the responder chain.
+**Why not a custom LRU:** NSCache's undefined eviction order is only a problem when you need to keep the newest entries and evict oldest. For this app the only consequence of eviction is a disk re-read — perfectly acceptable. A custom LRU adds ~150 lines of linked-list code and an ARC stack-overflow risk (documented: recursive deallocation of linked list nodes causes stack overflow with large caches). NSCache is sufficient and safe.
 
-**Required import:** `import Quartz`
-
-**Three methods that must be implemented:**
+**Cost calculation:** Set `totalCostLimit` using decoded pixel bytes:
 ```swift
-override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
-    return true
-}
-
-override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
-    panel.delegate = self
-    panel.dataSource = self
-}
-
-override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
-    // clear references
-}
+// 4 bytes per pixel (RGBA), width × height = total bytes
+let cost = Int(image.size.width * image.size.height) * 4
+cache.setObject(image, forKey: url.path as NSString, cost: cost)
 ```
 
-**Spacebar handling:** The sidebar `List` is a SwiftUI view, so it doesn't naturally subclass `NSView` for key overrides. The cleanest approach is to use SwiftUI's `.onKeyPress(.space)` (macOS 14+) or a focused `Button` with keyboard shortcut `.space`. If targeting macOS 13 and below, wrap the list in an `NSViewRepresentable` that subclasses `NSView` and overrides `keyDown`.
+**Recommended limits:**
+- `countLimit`: 50 images (generous upper bound for a dataset browser)
+- `totalCostLimit`: 200 MB (`200 * 1024 * 1024`) — leaves headroom for the OS on a typical 16 GB machine
 
-**Critical gotcha — NSTextView conflict (MEDIUM confidence):** When an `NSTextView` has focus, it intercepts the responder chain and takes QLPreviewPanel control for its own Quick Look on text ranges. This results in an empty or wrong Quick Look panel. The documented workarounds are:
-1. Ensure the sidebar (not the text view) has focus before triggering Quick Look — user must click sidebar before pressing spacebar
-2. Re-set `panel.dataSource = self` after the panel becomes visible (via `panelDidBecomeKey`)
-3. Do not subclass or override the private `quickLookPreviewableItems(inRanges:)` method — it is undocumented and App Store reviewers may flag it
+**Thread safety note:** NSCache is internally thread-safe. Reads and writes from `Task.detached` background tasks are safe. However, `NSImage` is NOT thread-safe: create the NSImage on the background thread (via `CGImage` → `NSImage(cgImage:size:)`) and only pass the completed `NSImage` value back to MainActor. Never mutate an NSImage object from multiple threads. The existing `Task.detached` pattern in `ContentView.loadImageForSelection()` already does this correctly.
 
-Source: [QuickLook + TextView Trouble — Michael Berk](https://mberk.com/posts/QuickLook+TextViewTrouble/)
+### 2. Prefetch — CGImageSource for display-size decode
 
----
-
-### 2. NSTextView Replacement for TextEditor
-
-**Pattern:** Same `NSViewRepresentable` pattern already used in `ZoomablePannableImage`. The Coordinator becomes an `NSTextViewDelegate`.
-
-**NSTextView must be embedded in NSScrollView:**
-```swift
-let scrollView = NSScrollView()
-let textView = NSTextView()
-scrollView.documentView = textView
-// return scrollView from makeNSView
-```
-
-**Properties to set in `makeNSView`:**
-```swift
-textView.isContinuousSpellCheckingEnabled = true
-textView.isGrammarCheckingEnabled = true
-textView.isAutomaticSpellingCorrectionEnabled = true
-textView.isAutomaticTextReplacementEnabled = true
-textView.isAutomaticQuoteSubstitutionEnabled = true
-textView.isAutomaticDashSubstitutionEnabled = true
-textView.isAutomaticLinkDetectionEnabled = false   // not useful for captions
-textView.allowsUndo = true
-textView.usesFontPanel = false   // not needed for plain caption text
-textView.isRichText = false      // plain text only, matches caption files
-textView.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
-```
-
-**Known issue with `isContinuousSpellCheckingEnabled`:** SwiftUI may reset this property to `false` when `updateNSView` is called. The fix is to guard against re-setting in `updateNSView` — only configure these flags once in `makeNSView`, never in `updateNSView`. Do not include them in the update path.
-
-**Grammar checking depth limitation (LOW confidence):** The public `NSSpellChecker` API does not surface the same grammar analysis depth as TextEdit's internal implementation. Setting `isGrammarCheckingEnabled = true` activates what the public API exposes (subject-verb agreement and similar), which is the correct approach and covers most use cases. Do not attempt to call private grammar APIs.
-
-**Receiving text changes via Coordinator:**
-```swift
-func textDidChange(_ notification: Notification) {
-    guard let tv = notification.object as? NSTextView else { return }
-    parent.text = tv.string
-}
-```
-
-**Language detection:** Automatic — the macOS text system performs language detection when spell checking is enabled. No additional configuration is needed.
-
----
-
-### 3. Finder Context Menus (Sidebar + File List)
-
-**Use SwiftUI's `.contextMenu` modifier directly.** This is sufficient for the required actions (reveal in Finder, open with default app, copy path). No AppKit NSMenu subclass is needed.
-
-Apply it to each `FolderNodeView` and each file row in the `ForEach` loop inside `ContentView`:
+**Pattern:** When `selectedID` changes, compute neighbors (±2 indices), launch `Task.detached` for each that is not already cached:
 
 ```swift
-.contextMenu {
-    Button("Reveal in Finder") {
-        NSWorkspace.shared.activateFileViewerSelecting([node.url])
-    }
-    Button("Open in Default App") {
-        NSWorkspace.shared.open(node.url)
-    }
-    Divider()
-    Button("Copy Path") {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(node.url.path, forType: .string)
+// In DatasetViewModel or a dedicated PrefetchCoordinator
+func prefetch(around index: Int) {
+    let indices = [index-2, index-1, index+1, index+2].filter { $0 >= 0 && $0 < pairs.count }
+    for i in indices {
+        let url = pairs[i].imageURL
+        guard imageCache.object(forKey: url.path as NSString) == nil else { continue }
+        Task.detached(priority: .utility) { [weak self] in
+            guard let self else { return }
+            let image = self.loadImageEfficiently(url: url)
+            if let image {
+                self.imageCache.setObject(image, forKey: url.path as NSString, cost: /* bytes */)
+            }
+        }
     }
 }
 ```
 
-**Note on Services submenu:** SwiftUI's `.contextMenu` does not include the system Services submenu. This is a known limitation. For a dataset management tool used solo, this omission is acceptable. If Services (e.g., "Open in Terminal") become required, the workaround requires an "AppKit sandwich" using `NSViewRepresentable` + `NSHostingView` + `NSServicesMenuRequestor` — significant complexity with marginal value.
+**CGImageSource decode pattern for prefetch:**
+```swift
+func loadImageEfficiently(url: URL) -> NSImage? {
+    let options: [CFString: Any] = [kCGImageSourceShouldCache: false]
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, options as CFDictionary) else { return nil }
+    let decodeOptions: [CFString: Any] = [
+        kCGImageSourceCreateThumbnailFromImageAlways: true,
+        kCGImageSourceCreateThumbnailWithTransform: true,
+        kCGImageSourceShouldCacheImmediately: true,   // forces decode NOW, on this bg thread
+        kCGImageSourceThumbnailMaxPixelSize: 1200     // display-size cap, not tiny thumbnail
+    ]
+    guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, decodeOptions as CFDictionary) else { return nil }
+    return NSImage(cgImage: cgImage, size: .zero)    // .zero = use CGImage's pixel size
+}
+```
 
-Source: [Including Services in contextual menus in SwiftUI — Wade Tregaskis](https://wadetregaskis.com/including-services-in-contextual-menus-in-swiftui/)
+**`kCGImageSourceThumbnailMaxPixelSize` value:** 1200 px on the long edge fits a 1200×900 viewport on a 2× Retina display at 600-point logical size. Adjust to match actual view dimensions if needed, but 1200 is a safe default that avoids full-resolution decoding while still looking sharp.
 
-**Known issue — small click areas in SwiftUI List:** `.contextMenu` on SwiftUI List rows on macOS sometimes only triggers on a narrow hit area, not the full row width. The fix is to ensure the row view has `.frame(maxWidth: .infinity)` and `.contentShape(Rectangle())` — both already present in the current `FolderNodeView`.
+**Task cancellation:** Store prefetch tasks in a `[UUID: Task<Void, Never>]` dictionary and cancel them when the user navigates to a distant image. This prevents wasted work when the user jumps quickly through the list.
 
-Source: [Small click areas in SwiftUI contextMenu with List — Cocoa Switch](https://www.cocoaswitch.com/2023/12/09/small-click-areas.html)
+### 3. Caption Cache — Dictionary in DatasetViewModel
+
+**No third-party library needed.** Caption files are small text files (typically <4 KB). Cache them as `[URL: String]` in DatasetViewModel. The existing `pairs` array already holds caption text — the "cache" is just ensuring the text is not re-read from disk on every selection change. The current implementation already does this. The new requirement is cache invalidation when the watchdog detects an external file change.
+
+**Invalidation on watchdog event:** When the watchdog fires for a specific caption file path, evict that entry and re-read:
+```swift
+func invalidateCaptionCache(for url: URL) {
+    if let idx = pairs.firstIndex(where: { $0.captionURL == url }) {
+        let reloaded = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        pairs[idx].captionText = reloaded
+        pairs[idx].savedCaptionText = reloaded
+        captionReloadToken &+= 1   // existing mechanism — tells CaptionEditingContainer to re-sync
+    }
+}
+```
+
+### 4. Filesystem Watchdog — DispatchSource VNODE
+
+**What to watch:** The current `directoryURL` (flat directory only — the app shows one folder's images at a time). Watch for `.write` events on the directory itself, which fire when files are added or removed. Also watch individual caption files for `.write` events (text editor "safe save" replaces the file, which fires `.delete` + `.rename` on the parent directory — the directory `.write` mask catches this).
+
+**Implementation skeleton:**
+```swift
+final class DirectoryWatchdog {
+    private var source: DispatchSourceFileSystemObject?
+    private var fileDescriptor: Int32 = -1
+
+    func start(watching url: URL, onChange: @escaping () -> Void) {
+        stop()
+        fileDescriptor = open(url.path, O_EVTONLY)
+        guard fileDescriptor >= 0 else { return }
+        let src = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fileDescriptor,
+            eventMask: [.write, .delete, .rename],
+            queue: .main
+        )
+        src.setEventHandler { onChange() }
+        src.setCancelHandler { [weak self] in
+            guard let self, self.fileDescriptor >= 0 else { return }
+            close(self.fileDescriptor)
+            self.fileDescriptor = -1
+        }
+        src.resume()
+        source = src
+    }
+
+    func stop() {
+        source?.cancel()
+        source = nil
+    }
+}
+```
+
+**Security-scoped access:** The directory watchdog must be started only while security-scoped access is active (i.e., after `startAccessingSecurityScopedResource()` succeeds). The existing `startSecurityScopedAccess()` call in `DatasetViewModel` keeps access permanently active for the session — the watchdog can be started immediately after. No additional entitlements are required: the user already granted access via `NSOpenPanel`, and the security-scoped bookmark covers all file operations within that tree.
+
+**Sandbox note:** `O_EVTONLY` within a security-scoped directory does not require any additional entitlements beyond what the existing bookmark provides. The flag is specifically designed for event-only monitoring and does not constitute a new file access grant.
+
+**Re-scan after watchdog fires:** Call the existing `scanCurrentDirectory()` to rebuild `pairs`. For caption-file-only changes (external editor), do targeted invalidation via `invalidateCaptionCache(for:)` instead of a full re-scan to avoid resetting scroll position.
+
+### 5. Memory Pressure Handler
+
+**Pattern:** Create one `DispatchSourceMemoryPressure` at app startup (or alongside the cache) and clear the image cache on `.warning` or `.critical`:
+
+```swift
+private func installMemoryPressureHandler() {
+    let source = DispatchSource.makeMemoryPressureSource(
+        eventMask: [.warning, .critical],
+        queue: .main
+    )
+    source.setEventHandler { [weak self] in
+        self?.imageCache.removeAllObjects()
+    }
+    source.resume()
+    memoryPressureSource = source   // retain it
+}
+```
+
+NSCache will also auto-evict under pressure, but this explicit handler ensures the cache is cleared before the process is suspended or killed, and gives a clean slate for the re-load path.
 
 ---
 
@@ -159,9 +189,10 @@ Source: [Small click areas in SwiftUI contextMenu with List — Cocoa Switch](ht
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| SwiftUI `.contextMenu` | AppKit `NSMenu` + `NSViewRepresentable` | Only if Services submenu is a hard requirement |
-| `QLPreviewPanel` responder chain | SwiftUI `.quickLookPreview` modifier (macOS 13+) | `.quickLookPreview` opens a modal sheet, not the floating panel. Use it if the Finder-panel behavior (floating, dismissable with spacebar) is not required. |
-| `NSTextView` in `NSViewRepresentable` | SwiftUI `TextEditor` | Keep `TextEditor` if spell check/grammar is not needed — it is simpler and avoids the QLPreviewPanel conflict |
+| `NSCache` | Custom LRU cache (e.g., nicklockwood/LRUCache) | Use LRUCache only if eviction order becomes a visible user-facing problem — i.e., if profiling shows the wrong images are being evicted causing repeated disk reads. For this app's single-user, sequential-navigation pattern, NSCache's undefined order is not a practical problem. |
+| `CGImageSource` + `NSImage(cgImage:size:)` | `NSImage(contentsOf:)` | Keep `NSImage(contentsOf:)` only for the currently-selected image if CGImageSource integration proves complex — but note it is 4–40x slower and decodes the full resolution |
+| `DispatchSource.makeFileSystemObjectSource` | FSEvents (`FSEventStreamCreate`) | Use FSEvents if recursive directory monitoring (watching subdirectories automatically) is needed. For the current flat-directory display model, DispatchSource is sufficient and far simpler to call from Swift. |
+| `DispatchSource.makeMemoryPressureSource` | `NSNotification` (`UIApplication.didReceiveMemoryWarningNotification`) | `didReceiveMemoryWarning` is iOS-only. On macOS, DispatchSource memory pressure is the correct API. |
 
 ---
 
@@ -169,10 +200,42 @@ Source: [Small click areas in SwiftUI contextMenu with List — Cocoa Switch](ht
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `quickLookPreviewableItems(inRanges:)` override | Undocumented private API, App Store review risk, may break on OS updates | Accept the focus-dependency workaround for QL + NSTextView conflict |
-| `NSSharingService` or `NSSharingServicePicker` | For sharing to other apps, not for the Finder context menu pattern | `NSWorkspace` for Finder operations |
-| Third-party rich text editor libraries (e.g. STTextView, RichTextKit) | Over-engineered for plain text captions. Adds a dependency for features not needed. | Plain `NSTextView` with `isRichText = false` |
-| Setting spell-check flags in `updateNSView` | Causes SwiftUI to repeatedly reset `isContinuousSpellCheckingEnabled` to `false` | Set all text system flags once in `makeNSView` only |
+| Third-party image caching libraries (Kingfisher, SDWebImage) | Designed for network image loading with HTTP caching, retry logic, and CDN integration — all irrelevant for local file loading. Adds ~500 KB binary and concepts the app does not need. | `NSCache` + `CGImageSource` directly |
+| FSEvents for flat-directory monitoring | Requires C-level callback bridging, runs in a separate thread requiring manual synchronization, and the recursive monitoring it provides is unnecessary for a single-directory view. | `DispatchSource.makeFileSystemObjectSource` |
+| `NSImage(contentsOf:)` in the prefetch path | Decodes the full resolution image into memory. A 6000×4000 24 MP JPEG decodes to ~96 MB uncompressed. Prefetching 4 neighbors = 384 MB just for prefetch. | `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceThumbnailMaxPixelSize` cap |
+| Mutating NSImage from a background thread | NSImage is not thread-safe. Accessing bitmap representations concurrently causes data races and sporadic crashes. | Create NSImage values on the background thread via `CGImage` → `NSImage(cgImage:size:)`, then pass completed values to MainActor. Never share a mutable NSImage across threads. |
+| Setting `kCGImageSourceShouldCache: true` on the source creation options | Causes ImageIO to keep a full-resolution decoded buffer inside the CGImageSource object in addition to the thumbnail. Double memory usage for no benefit. | `kCGImageSourceShouldCache: false` on source creation, `kCGImageSourceShouldCacheImmediately: true` on thumbnail creation only |
+
+---
+
+## Stack Patterns by Scenario
+
+**If the user is navigating sequentially (up/down arrows):**
+- Prefetch ±2 neighbors at `.utility` priority
+- Cancel prefetch tasks for indices more than 3 positions away
+
+**If the user jumps to a distant image (clicks sidebar):**
+- Cancel all in-flight prefetch tasks immediately
+- Load the selected image at `.userInitiated` priority
+- Start fresh prefetch from the new index
+
+**If memory pressure `.warning` fires:**
+- Call `imageCache.removeAllObjects()`
+- Do NOT cancel any in-flight load for the currently selected image
+- Re-prefetch will happen naturally on next navigation
+
+**If memory pressure `.critical` fires:**
+- Call `imageCache.removeAllObjects()`
+- Also cancel all in-flight prefetch tasks (not the current-image task)
+
+**If the watchdog fires a directory `.write` event:**
+- Debounce 250 ms (burst writes from external tools can trigger many events per second)
+- Call `scanCurrentDirectory()` to rebuild `pairs`
+- Preserve `selectedID` across the rescan if the image still exists
+
+**If the watchdog fires and only caption files changed (no new images, no deletions):**
+- Call `invalidateCaptionCache(for:)` for each changed caption URL
+- Skip full `scanCurrentDirectory()` to avoid resetting file list scroll position
 
 ---
 
@@ -180,25 +243,29 @@ Source: [Small click areas in SwiftUI contextMenu with List — Cocoa Switch](ht
 
 | Feature | Minimum macOS | Notes |
 |---------|--------------|-------|
-| `QLPreviewPanel` / `QuickLookUI` | macOS 10.6 | Stable, no version concerns |
-| `NSTextView` spell/grammar properties | macOS 10.5 | All properties used are long-stable |
-| SwiftUI `.contextMenu` on `List` rows | macOS 12.0 | Works reliably from macOS 12+ |
-| SwiftUI `.onKeyPress(.space)` | macOS 14.0 | If targeting macOS 13, use `NSViewRepresentable` key capture instead |
-| `contextMenu(forSelectionType:menu:primaryAction:)` | macOS 13.0 | More powerful than plain `.contextMenu`; optional upgrade |
+| `NSCache` | macOS 10.6 | Stable, long-standing API |
+| `CGImageSource` / ImageIO | macOS 10.4 | Stable, no version concerns for any targeted function |
+| `kCGImageSourceShouldCacheImmediately` | macOS 10.9 | Required for forcing decode on background thread |
+| `DispatchSource.makeFileSystemObjectSource` | macOS 10.6 (GCD) | Stable; Swift wrapper available since Swift 3 |
+| `DispatchSource.makeMemoryPressureSource` | macOS 10.9 | Stable since Mavericks |
+| `NSImage(cgImage:size:)` | macOS 10.6 | Stable |
+| All features combined | macOS 14+ | Project already targets macOS 14+; no compatibility concerns |
 
 ---
 
 ## Sources
 
-- [QLPreviewPanel — Apple Developer Documentation](https://developer.apple.com/documentation/quicklookui/qlpreviewpanel) — responder chain control pattern
-- [Quick Look with NSTableView and Swift (2023) — DevGypsy](https://devgypsy.com/post/2023-06-06-quicklook-swift-tableview/) — complete Swift implementation, HIGH confidence
-- [QuickLook + TextView Trouble — Michael Berk](https://mberk.com/posts/QuickLook+TextViewTrouble/) — NSTextView/QLPreviewPanel conflict, MEDIUM confidence (paywalled, summarized via search)
-- [Including Services in contextual menus in SwiftUI — Wade Tregaskis](https://wadetregaskis.com/including-services-in-contextual-menus-in-swiftui/) — Services submenu limitation and workaround, HIGH confidence
-- [How does NSTextView invoke grammar checking internally — Swift Forums](https://forums.swift.org/t/how-does-nstextview-invoke-grammar-checking-internally/84832) — grammar depth limitation, MEDIUM confidence
-- [Small click areas in SwiftUI contextMenu with List — Cocoa Switch (2023)](https://www.cocoaswitch.com/2023/12/09/small-click-areas.html) — hit area fix, MEDIUM confidence
-- [MacEditorTextView gist — unnamedd](https://gist.github.com/unnamedd/6e8c3fbc806b8deb60fa65d6b9affab0) — NSTextView NSViewRepresentable reference implementation, MEDIUM confidence
-- [Enabling Selection, Double-Click and Context Menus in SwiftUI List — SerialCoder.dev](https://serialcoder.dev/text-tutorials/swiftui/enabling-selection-double-click-and-context-menus-in-swiftui-list-on-macos/) — List context menu pattern, MEDIUM confidence
+- [NSCache — Apple Developer Documentation](https://developer.apple.com/documentation/foundation/nscache) — countLimit, totalCostLimit, thread-safety guarantees; HIGH confidence
+- [Fast Thumbnails with CGImageSource — macguru.dev](https://macguru.dev/fast-thumbnails-with-cgimagesource/) — benchmark data (JPEG 40x speedup vs NSImage), kCGImageSource option flags; HIGH confidence
+- [kCGImageSourceShouldCacheImmediately — Apple Developer Documentation](https://developer.apple.com/documentation/imageio/kcgimagesourceshouldcacheimmediately) — forces decode at thumbnail creation time; HIGH confidence
+- [DispatchSource: Detecting changes in files and folders — SwiftRocks](https://swiftrocks.com/dispatchsource-detecting-changes-in-files-and-folders-in-swift) — VNODE pattern, O_EVTONLY, event handler wiring; MEDIUM confidence
+- [File and Directory Monitor in Swift — Gist/brennanMKE](https://gist.github.com/brennanMKE/55bf2975a994b518d9270cc2f3ec6716) — complete DispatchSource monitor class with state management and cancel handler; MEDIUM confidence
+- [DispatchSourceMemoryPressure — Apple Developer Documentation](https://developer.apple.com/documentation/dispatch/dispatchsourcememorypressure) — .warning / .critical event mask values; HIGH confidence
+- [Michael Tsai — NSCache and LRUCache (2025)](https://mjtsai.com/blog/2025/05/09/nscache-and-lrucache/) — NSCache undefined eviction order confirmed; LRU tradeoffs and ARC stack-overflow risk documented; HIGH confidence
+- [NSImage is dangerous — Wade Tregaskis](https://wadetregaskis.com/nsimage-is-dangerous/) — NSImage thread-unsafety, bitmap data races, CGImage-first strategy; HIGH confidence
+- [DISPATCH_SOURCE_TYPE_VNODE — Apple Developer Documentation](https://developer.apple.com/documentation/dispatch/dispatch_source_type_vnode) — .write mask fires on directory-level changes; HIGH confidence
+- [LRUCache — nicklockwood/LRUCache (GitHub)](https://github.com/nicklockwood/LRUCache) — alternative considered, rejected for this use case; MEDIUM confidence
 
 ---
-*Stack research for: macOS native OS integration (LoRA Dataset Browser v1.4)*
-*Researched: 2026-03-15*
+*Stack research for: macOS image/caption caching, prefetch, filesystem monitoring (LoRA Dataset Browser v1.5)*
+*Researched: 2026-03-16*
