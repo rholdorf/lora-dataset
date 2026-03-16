@@ -69,6 +69,6 @@ Plans:
 | 7. NSTextView Caption Editor | v1.4 | 1/1 | Complete | 2026-03-16 |
 | 8. Finder Context Menus | v1.4 | 1/1 | Complete | 2026-03-16 |
 | 9. Quick Look Preview | v1.4 | 1/1 | Complete | 2026-03-16 |
-| 10. Image Cache + Prefetch | 2/2 | Complete   | 2026-03-16 | - |
+| 10. Image Cache + Prefetch | 2/2 | Complete    | 2026-03-16 | - |
 | 11. FS Watchdog -- Structural | v1.5 | 0/? | Not started | - |
 | 12. FS Watchdog -- Captions | v1.5 | 0/? | Not started | - |
