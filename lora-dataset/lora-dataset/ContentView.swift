@@ -8,6 +8,9 @@ struct ContentView: View {
     @State private var imageOffset: CGSize = .zero
     @State private var loadedImage: NSImage? = nil
     @State private var selectedFileID: UUID? = nil
+    @State private var showSpinner: Bool = false
+    @State private var loadError: Bool = false
+    @State private var loadErrorFilename: String = ""
 
     var body: some View {
         NavigationSplitView {
@@ -83,7 +86,15 @@ struct ContentView: View {
             }
             .frame(minWidth: 280)
         } detail: {
-            DetailView(vm: vm, loadedImage: $loadedImage, imageScale: $imageScale, imageOffset: $imageOffset)
+            DetailView(
+                vm: vm,
+                loadedImage: $loadedImage,
+                imageScale: $imageScale,
+                imageOffset: $imageOffset,
+                showSpinner: $showSpinner,
+                loadError: $loadError,
+                loadErrorFilename: $loadErrorFilename
+            )
         }
         .frame(minWidth: 900, minHeight: 500)
         .navigationTitle("")
@@ -157,6 +168,8 @@ struct ContentView: View {
     private func loadImageForSelection() {
         imageScale = 1.0
         imageOffset = .zero
+        showSpinner = false
+        loadError = false
 
         guard let id = selectedFileID,
               let pair = vm.pairs.first(where: { $0.id == id }) else {
@@ -165,12 +178,51 @@ struct ContentView: View {
         }
 
         let url = pair.imageURL
-        Task.detached {
-            let image = NSImage(contentsOf: url)
-            await MainActor.run {
-                // Only apply if selection hasn't changed while loading
-                guard self.selectedFileID == id else { return }
-                self.loadedImage = image
+        let capturedID = id
+
+        Task { @MainActor in
+            // Fast path: cache hit
+            if let cached = await vm.imageCache.image(for: url) {
+                guard self.selectedFileID == capturedID else { return }
+                self.loadedImage = cached
+                print("[cache] hit for \(url.lastPathComponent)")
+                // Trigger prefetch for neighbors
+                vm.triggerPrefetch(aroundID: capturedID)
+                return
+            }
+
+            print("[cache] miss for \(url.lastPathComponent)")
+
+            // Slow path: cache miss -- start 150ms delayed spinner
+            let spinnerTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                guard self.selectedFileID == capturedID, self.loadedImage == nil else { return }
+                self.showSpinner = true
+            }
+
+            // Load off-main-thread at display size (800 = 2x retina of 400pt frame)
+            let result = await Task.detached(priority: .userInitiated) {
+                loadImage(url: url, maxPixelSize: 800)
+            }.value
+
+            spinnerTask.cancel()
+            guard self.selectedFileID == capturedID else { return }
+            self.showSpinner = false
+
+            if let img = result {
+                self.loadedImage = img
+                self.loadError = false
+                // Insert into cache for future hits
+                let cost = img.representations.first.map { $0.pixelsWide * $0.pixelsHigh * 4 }
+                    ?? Int(img.size.width * img.size.height * 4)
+                await vm.imageCache.insert(img, cost: cost, for: url)
+                // Trigger prefetch for neighbors
+                vm.triggerPrefetch(aroundID: capturedID)
+            } else {
+                // Load failure: show error state (per user decision)
+                self.loadedImage = nil
+                self.loadError = true
+                self.loadErrorFilename = url.lastPathComponent
             }
         }
     }
@@ -319,6 +371,9 @@ struct DetailView: View {
     @Binding var loadedImage: NSImage?
     @Binding var imageScale: CGFloat
     @Binding var imageOffset: CGSize
+    @Binding var showSpinner: Bool
+    @Binding var loadError: Bool
+    @Binding var loadErrorFilename: String
 
     @State private var captionFilename: String = ""
 
@@ -330,7 +385,18 @@ struct DetailView: View {
 
                 HSplitView {
                     Group {
-                        if let nsImage = loadedImage {
+                        if loadError {
+                            // Error state: warning icon + filename (per user decision)
+                            VStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.secondary)
+                                Text(loadErrorFilename)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .frame(width: 400, height: 400)
+                        } else if let nsImage = loadedImage {
                             ZoomablePannableImage(
                                 image: nsImage,
                                 scale: $imageScale,
@@ -338,8 +404,26 @@ struct DetailView: View {
                             )
                             .frame(width: 400, height: 400)
                             .clipped()
+                            .overlay {
+                                if showSpinner {
+                                    // Spinner on dimmed previous image (per user decision)
+                                    ZStack {
+                                        Color.black.opacity(0.3)
+                                        ProgressView()
+                                            .controlSize(.large)
+                                    }
+                                }
+                            }
+                        } else if showSpinner {
+                            // No previous image yet, but spinner should show
+                            ZStack {
+                                Color.black.opacity(0.3)
+                                    .frame(width: 400, height: 400)
+                                ProgressView()
+                                    .controlSize(.large)
+                            }
                         } else {
-                            Text("Não foi possível carregar a imagem.")
+                            Text("Nao foi possivel carregar a imagem.")
                                 .foregroundColor(.red)
                         }
                     }
