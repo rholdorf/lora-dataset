@@ -65,6 +65,10 @@ struct ContentView: View {
                         }
                     }
                     .listStyle(.sidebar)
+                    .onKeyPress(.space) {
+                        vm.toggleQuickLook()
+                        return .handled
+                    }
                     .onChange(of: vm.pairs) {
                         // Scroll to selected item when pairs are loaded (session restore)
                         if let id = vm.selectedID {
@@ -160,7 +164,15 @@ struct ContentView: View {
             return
         }
 
-        loadedImage = NSImage(contentsOf: pair.imageURL)
+        let url = pair.imageURL
+        Task.detached {
+            let image = NSImage(contentsOf: url)
+            await MainActor.run {
+                // Only apply if selection hasn't changed while loading
+                guard self.selectedFileID == id else { return }
+                self.loadedImage = image
+            }
+        }
     }
 
     @ViewBuilder

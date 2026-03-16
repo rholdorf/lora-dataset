@@ -12,6 +12,8 @@ class DatasetViewModel: ObservableObject {
             if let pair = selectedPair {
                 UserDefaults.standard.set(pair.imageURL.path, forKey: "lastSelectedImagePath")
             }
+            // Update Quick Look panel if visible
+            updateQuickLookIfVisible()
         }
     }
     @Published var directoryURL: URL? = nil
@@ -33,6 +35,9 @@ class DatasetViewModel: ObservableObject {
 
     // Track if security-scoped access is active
     private var isAccessingSecurityScope = false
+
+    // Key event monitor for Quick Look navigation
+    private var qlKeyMonitor: Any? = nil
 
     let supportedImageExtensions = ["jpg", "jpeg", "png", "webp", "bmp", "tiff"]
     let supportedCaptionExtensions = ["txt", "caption"]
@@ -373,8 +378,83 @@ class DatasetViewModel: ObservableObject {
             panel.dataSource = qlPreviewHelper
             panel.currentPreviewItemIndex = 0
             panel.reloadData()
-            panel.makeKeyAndOrderFront(nil)
+            panel.orderFront(nil)
         }
+    }
+
+    func toggleQuickLook() {
+        guard let pair = selectedPair else { return }
+
+        let panel = QLPreviewPanel.shared()!
+        if panel.isVisible {
+            panel.orderOut(nil)
+            removeQLKeyMonitor()
+        } else {
+            qlPreviewHelper.previewURL = pair.imageURL
+            panel.dataSource = qlPreviewHelper
+            panel.currentPreviewItemIndex = 0
+            panel.reloadData()
+            panel.orderFront(nil)
+            installQLKeyMonitor()
+        }
+    }
+
+    private func installQLKeyMonitor() {
+        guard qlKeyMonitor == nil else { return }
+        qlKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self else { return event }
+            let panel = QLPreviewPanel.shared()!
+            guard panel.isVisible else { return event }
+
+            // Spacebar — toggle panel off
+            if event.keyCode == 49 {
+                panel.orderOut(nil)
+                self.removeQLKeyMonitor()
+                return nil // consume event
+            }
+
+            // Down arrow or Right arrow — next image
+            if event.keyCode == 125 || event.keyCode == 124 {
+                self.selectNextPair()
+                return nil
+            }
+
+            // Up arrow or Left arrow — previous image
+            if event.keyCode == 126 || event.keyCode == 123 {
+                self.selectPreviousPair()
+                return nil
+            }
+
+            return event
+        }
+    }
+
+    private func removeQLKeyMonitor() {
+        if let monitor = qlKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            qlKeyMonitor = nil
+        }
+    }
+
+    private func selectNextPair() {
+        guard let id = selectedID,
+              let idx = pairs.firstIndex(where: { $0.id == id }),
+              idx + 1 < pairs.count else { return }
+        selectedID = pairs[idx + 1].id
+    }
+
+    private func selectPreviousPair() {
+        guard let id = selectedID,
+              let idx = pairs.firstIndex(where: { $0.id == id }),
+              idx > 0 else { return }
+        selectedID = pairs[idx - 1].id
+    }
+
+    private func updateQuickLookIfVisible() {
+        let panel = QLPreviewPanel.shared()!
+        guard panel.isVisible, let pair = selectedPair else { return }
+        qlPreviewHelper.previewURL = pair.imageURL
+        panel.reloadData()
     }
 
     // MARK: - Folder Expansion State
