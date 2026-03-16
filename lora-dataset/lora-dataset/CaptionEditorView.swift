@@ -94,6 +94,10 @@ struct CaptionEditorView: NSViewRepresentable {
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let tv = nsView.documentView as? NSTextView else { return }
 
+        // Keep coordinator's parent in sync so textDidChange writes to the
+        // current binding, not the one from makeCoordinator (stale after image switch)
+        context.coordinator.parent = self
+
         // Only update text when the change originated outside the text view
         // (e.g., image switch, caption reload from disk)
         guard !context.coordinator.isUpdatingProgrammatically else { return }
