@@ -28,7 +28,9 @@
   3. Smart quotes and smart dashes do not activate when the user types quotation marks or double-hyphens in the caption editor
   4. Grammar issues show green underlines in the caption editor
   5. Spell checking language switches automatically when the user types in a different language without any manual setting
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 07-01-PLAN.md — Create NSTextView caption editor with LoRA-safe settings and integrate into ContentView
 
 ### Phase 8: Finder Context Menus
 **Goal**: Users can right-click any sidebar item to access OS-native file operations without leaving the app
@@ -64,6 +66,6 @@
 | 4. Polish | v1.1 | 1/1 | Complete | 2025-12-21 |
 | 5. Toolbar Integration | v1.2 | 1/1 | Complete | 2025-12-22 |
 | 6. Session Restoration | v1.3 | 1/1 | Complete | 2025-12-22 |
-| 7. NSTextView Caption Editor | v1.4 | 0/? | Not started | - |
+| 7. NSTextView Caption Editor | v1.4 | 0/1 | Not started | - |
 | 8. Finder Context Menus | v1.4 | 0/? | Not started | - |
 | 9. Quick Look Preview | v1.4 | 0/? | Not started | - |
