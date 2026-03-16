@@ -1,27 +1,20 @@
 # Project State
 
-## Project Summary
+## Project Reference
 
-**Building:** A macOS application for managing image-caption dataset pairs with Finder-like navigation
+See: .planning/PROJECT.md (updated 2026-03-15)
 
-**Core requirements:**
-- Sidebar with expandable folder tree (like Finder)
-- Navigate directories without leaving the app
-- Dirty indicator when caption text has unsaved changes
-- Cmd+S keyboard shortcut to save
-- Native macOS look and feel
-
-**Constraints:**
-- macOS 14+ only
-- Pure SwiftUI/AppKit (no external packages)
-- Must follow Apple HIG
+**Core value:** View images alongside their caption files and edit captions in place for LoRA training datasets
+**Current focus:** Phase 7 — NSTextView Caption Editor
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-15 — Milestone v1.4 started
+Phase: 7 of 9 (NSTextView Caption Editor)
+Plan: — of — in current phase
+Status: Ready to plan
+Last activity: 2026-03-15 — Roadmap created for v1.4 Native OS Integration
+
+Progress: [░░░░░░░░░░] 0% (v1.4)
 
 ## Performance Metrics
 
@@ -73,28 +66,12 @@ Last activity: 2026-03-15 — Milestone v1.4 started
 | 06-01 | Path-based matching for image restore | UUIDs regenerate on scan, paths are stable |
 | 06-01 | One-time restore pattern | Clear lastSelectedImagePath after matching to prevent loops |
 
-### Deferred Issues
-
-None yet.
-
 ### Blockers/Concerns Carried Forward
 
-None yet.
-
-## Project Alignment
-
-Last checked: Project start
-Status: ✓ Aligned
-Assessment: No work done yet - baseline alignment.
-Drift notes: None
+- [Phase 9] `.quickLookPreview` modifier vs. manual NSResponder shim: must validate empirically at the start of Phase 9 — modifier may produce a sheet rather than floating panel on macOS.
 
 ## Session Continuity
 
-Last session: 2025-12-22
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-03-15
+Stopped at: Roadmap created for v1.4 — ready to plan Phase 7
 Resume file: None
-
-### Roadmap Evolution
-
-- Milestone v1.2 created: UI polish with toolbar integration, 1 phase (Phase 5)
-- Milestone v1.3 created: Session restoration feature, 1 phase (Phase 6)

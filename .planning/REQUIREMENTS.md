@@ -54,25 +54,25 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EDIT-01 | — | Pending |
-| EDIT-02 | — | Pending |
-| EDIT-03 | — | Pending |
-| EDIT-04 | — | Pending |
-| EDIT-05 | — | Pending |
-| CTXM-01 | — | Pending |
-| CTXM-02 | — | Pending |
-| CTXM-03 | — | Pending |
-| CTXM-04 | — | Pending |
-| CTXM-05 | — | Pending |
-| QLPV-01 | — | Pending |
-| QLPV-02 | — | Pending |
-| QLPV-03 | — | Pending |
+| EDIT-01 | Phase 7 | Pending |
+| EDIT-02 | Phase 7 | Pending |
+| EDIT-03 | Phase 7 | Pending |
+| EDIT-04 | Phase 7 | Pending |
+| EDIT-05 | Phase 7 | Pending |
+| CTXM-01 | Phase 8 | Pending |
+| CTXM-02 | Phase 8 | Pending |
+| CTXM-03 | Phase 8 | Pending |
+| CTXM-04 | Phase 8 | Pending |
+| CTXM-05 | Phase 8 | Pending |
+| QLPV-01 | Phase 9 | Pending |
+| QLPV-02 | Phase 9 | Pending |
+| QLPV-03 | Phase 9 | Pending |
 
 **Coverage:**
 - v1.4 requirements: 13 total
-- Mapped to phases: 0
-- Unmapped: 13
+- Mapped to phases: 13
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-15*
-*Last updated: 2026-03-15 after initial definition*
+*Last updated: 2026-03-15 — traceability populated after roadmap creation*
