@@ -2,42 +2,41 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Native OS Integration
-status: planning
-stopped_at: Phase 9 context gathered
-last_updated: "2026-03-16T12:14:22.177Z"
-last_activity: 2026-03-15 — Roadmap created for v1.4 Native OS Integration
+status: complete
+stopped_at: Milestone v1.4 complete
+last_updated: "2026-03-16"
+last_activity: 2026-03-16 — v1.4 milestone completed
 progress:
   total_phases: 3
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
-  percent: 0
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
+  percent: 100
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-15)
+See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** View images alongside their caption files and edit captions in place for LoRA training datasets
-**Current focus:** Phase 7 — NSTextView Caption Editor
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 7 of 9 (NSTextView Caption Editor)
-Plan: — of — in current phase
-Status: Ready to plan
-Last activity: 2026-03-15 — Roadmap created for v1.4 Native OS Integration
+Milestone: v1.4 Native OS Integration — COMPLETE
+All 3 phases, 3 plans complete.
+Last activity: 2026-03-16 — v1.4 milestone completed
 
-Progress: [░░░░░░░░░░] 0% (v1.4)
+Progress: [██████████] 100% (v1.4)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 40 min
-- Total execution time: 4h 38m
+- Total plans completed: 10
+- Average duration: ~30 min
+- Total execution time: ~5h
 
 **By Phase:**
 
@@ -49,58 +48,31 @@ Progress: [░░░░░░░░░░] 0% (v1.4)
 | 4 | 1 | 20 min | 20 min |
 | 5 | 1 | 20 min | 20 min |
 | 6 | 1 | 3 min | 3 min |
-
-**Recent Trend:**
-- Last 5 plans: 02-01 (11 min), 03-01 (2h 15m), 04-01 (20 min), 05-01 (20 min), 06-01 (3 min)
-- Trend: Simple feature additions execute quickly
-
-*Updated after each plan completion*
-| Phase 07-01 P01 | 4 | 3 tasks | 3 files |
-| Phase 07-01 P01 | 45 | 3 tasks | 4 files |
-| Phase 08-finder-context-menus P01 | 20 | 2 tasks | 3 files |
-| Phase 08-finder-context-menus P01 | 20 | 3 tasks | 3 files |
+| 7 | 1 | 45 min | 45 min |
+| 8 | 1 | 20 min | 20 min |
+| 9 | 1 | manual | iterative |
 
 ## Accumulated Context
 
-### Decisions Made
+### Decisions Made (v1.4)
 
 | Phase | Decision | Rationale |
 |-------|----------|-----------|
-| 01-02 | No lazy loading | Build complete tree upfront to avoid SwiftUI view update conflicts |
-| 01-02 | Persistent security-scoped access | Keep access active for session, required for image loading |
-| 01-02 | Local @State for List selection | Avoid binding @Published directly to List selection, sync via Task |
-| 01-02 | OutlineGroup for tree | Native SwiftUI tree support, simpler than DisclosureGroup recursion |
-| 02-01 | Separate SaveButtonView with @ObservedObject | FocusedValue alone doesn't observe ViewModel changes; child view needed |
-| 02-01 | Include text fields in Equatable | SwiftUI needs to detect captionText changes for dirty indicator updates |
-| 02-01 | Button instead of onTapGesture for folders | Avoid first-click conflict with List selection mechanism |
-| 03-01 | Path strings for UserDefaults | url.path strings for persistence compatibility |
-| 03-01 | Set<String> for expansion state | O(1) lookup for isExpanded() checks |
-| 03-01 | Recursive DisclosureGroup | OutlineGroup doesn't expose expansion bindings |
-| 04-01 | Manual disclosure over DisclosureGroup | DisclosureGroup intercepts label clicks, preventing navigation |
-| 04-01 | onTapGesture over Button in List | Button hit-testing unreliable after List re-renders |
-| 04-01 | Separate FolderNodeView | Each node needs own View for proper state lifecycle |
-| 05-01 | .navigation placement for folder controls | Standard macOS toolbar convention for leading items |
-| 05-01 | .primaryAction for caption buttons | Prominent placement for primary actions |
-| 05-01 | Cmd+Shift+R for Reload Caption | Avoids conflict with system Cmd+R |
-| 06-01 | didSet observer for selectedID persistence | Automatic persistence without explicit calls |
-| 06-01 | Path-based matching for image restore | UUIDs regenerate on scan, paths are stable |
-| 06-01 | One-time restore pattern | Clear lastSelectedImagePath after matching to prevent loops |
-- [Phase 07-01]: makeNSViewForTesting() helper exposes NSView config for unit tests without NSViewRepresentable.Context
-- [Phase 07-01]: substitutionsVerified flag re-applies LoRA-safe NSTextView settings once after first updateNSView (guards against macOS reset)
-- [Phase 07-01]: Monospace font size 13 used for CaptionEditorView — appropriate for LoRA training data captions
-- [Phase 07-01]: TextEditingCommands added to WindowGroup to expose Spelling & Grammar menu in macOS menu bar
-- [Phase 07-01]: NSTextView subclass (CaptionNSTextView) used for reliable grammar check underline behavior
-- [Phase 08-01]: QLPreviewHelper is deliberately minimal — Phase 9 will build full QLPreviewPanel with spacebar support
-- [Phase 08-01]: openWithMenu as @ViewBuilder on ContentView — NSWorkspace calls inline acceptable since .contextMenu rebuilds each time
-- [Phase 08-01]: NSApp.keyWindow?.makeFirstResponder(nil) before QLPreviewPanel to prevent NSTextView hijack
-- [Phase 08-01]: QLPreviewHelper is deliberately minimal — Phase 9 will build full QLPreviewPanel with spacebar support
+| 07 | NSTextView subclass for grammar underlines | Standard NSTextView doesn't reliably show grammar check |
+| 07 | LoRA-safe defaults (no smart quotes) | Protects training data from punctuation corruption |
+| 07 | Monospace font size 13 | Appropriate for LoRA training data captions |
+| 08 | QLPreviewHelper as minimal data source | Simple approach that works; no AppDelegate needed |
+| 08 | @ViewBuilder for context menu helpers | NSWorkspace calls inline acceptable since .contextMenu rebuilds |
+| 09 | Kept QLPreviewHelper over AppDelegate approach | AppDelegate responder chain showed blank panel |
+| 09 | NSEvent local key monitor for QL navigation | QLPreviewPanel steals focus; monitor intercepts keys reliably |
+| 09 | Async image loading via Task.detached | Prevents main thread blocking during rapid navigation |
 
 ### Blockers/Concerns Carried Forward
 
-- [Phase 9] `.quickLookPreview` modifier vs. manual NSResponder shim: must validate empirically at the start of Phase 9 — modifier may produce a sheet rather than floating panel on macOS.
+None — milestone complete.
 
 ## Session Continuity
 
-Last session: 2026-03-16T12:14:22.175Z
-Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-quick-look-preview/09-CONTEXT.md
+Last session: 2026-03-16
+Stopped at: Milestone v1.4 complete
+Next: /gsd:new-milestone

@@ -1,35 +1,40 @@
 # LoRA Dataset Browser
 
-## Current State (Updated: 2025-12-22)
+## Current State (Updated: 2026-03-16)
 
-**Shipped:** v1.3 Features (2025-12-22)
+**Shipped:** v1.4 Native OS Integration (2026-03-16)
 **Status:** Internal use
 **Users:** Solo developer (Rui)
-**Feedback:** Gathering feedback on v1.3
 
 **Codebase:**
-- ~1,142 lines of Swift
-- SwiftUI + AppKit (NSViewRepresentable for zoom/pan)
+- ~1,639 lines of Swift
+- SwiftUI + AppKit (NSViewRepresentable for zoom/pan, NSTextView for caption editing)
 - MVVM architecture with @MainActor ViewModel
 - Security-scoped bookmarks for sandbox compliance
+- macOS 14+ deployment target
 
 **Current Capabilities:**
 - Native macOS toolbar with folder picker and path display
 - Sidebar folder tree with expand/collapse navigation
 - Navigate directories without re-selecting via NSOpenPanel
 - View images with pan and zoom (custom NSView)
-- Edit caption text in a TextEditor
+- Edit captions in native NSTextView with spell check, grammar check, dictionary lookup
+- LoRA-safe text settings (no smart quotes/dashes)
+- Right-click context menus: Reveal in Finder, Open With, Quick Look (files); Open in Finder, Open in Terminal (folders)
+- Spacebar Quick Look toggle with arrow key navigation while panel is open
+- Async image loading for smooth keyboard navigation
 - File menu: Open Folder (Cmd+O), Save (Cmd+S), Reload Caption (Cmd+Shift+R)
 - Orange dirty indicator for unsaved changes
 - Folder expansion state persists between app launches
-- Auto-restore last directory on launch
 - Session restoration: remembers last folder and selected image
-- Auto-scroll to restored image in file list
 
 **Known Issues:**
 - None currently identified
 
-## Current Milestone: v1.4 Native OS Integration
+---
+
+<details>
+<summary>v1.4 Goals (Archived)</summary>
 
 **Goal:** Deep macOS integration — Finder context menus, Quick Look preview, and full native text editing with spell check and dictionary support.
 
@@ -38,7 +43,13 @@
 - Quick Look preview on spacebar press
 - Full native NSTextView for caption editing (spell check, grammar, dictionary, auto-language detection, substitutions)
 
----
+**Success Criteria:**
+- [x] Native NSTextView caption editor with spell/grammar check and LoRA-safe settings
+- [x] Right-click context menus on files and folders in sidebar
+- [x] Spacebar Quick Look toggle with floating QLPreviewPanel
+- [x] Arrow key navigation while Quick Look panel is open
+
+</details>
 
 <details>
 <summary>v1.3 Goals (Archived)</summary>
@@ -155,3 +166,4 @@ Built as a solo developer tool for personal LoRA training workflow.
 
 ---
 *Initialized: 2025-12-20*
+*Last updated: 2026-03-16 after v1.4 milestone*
