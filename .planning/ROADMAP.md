@@ -30,7 +30,7 @@
   5. Spell checking language switches automatically when the user types in a different language without any manual setting
 **Plans:** 1/1 plans complete
 Plans:
-- [ ] 07-01-PLAN.md — Create NSTextView caption editor with LoRA-safe settings and integrate into ContentView
+- [x] 07-01-PLAN.md — Create NSTextView caption editor with LoRA-safe settings and integrate into ContentView
 
 ### Phase 8: Finder Context Menus
 **Goal**: Users can right-click any sidebar item to access OS-native file operations without leaving the app
@@ -42,7 +42,9 @@ Plans:
   3. "Reveal in Finder" (for files) and "Open in Finder" (for folders) in the context menu opens Finder with the item highlighted or the folder opened
   4. "Open With" in the context menu shows a submenu of applications that can open the image file
   5. "Quick Look" in the context menu triggers the Quick Look panel for that file
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 08-01-PLAN.md — Add context menus to file/folder rows with Reveal in Finder, Open With, Quick Look, Open in Finder, Open in Terminal
 
 ### Phase 9: Quick Look Preview
 **Goal**: Users can preview the selected image in the native floating Quick Look panel using spacebar
@@ -66,6 +68,6 @@ Plans:
 | 4. Polish | v1.1 | 1/1 | Complete | 2025-12-21 |
 | 5. Toolbar Integration | v1.2 | 1/1 | Complete | 2025-12-22 |
 | 6. Session Restoration | v1.3 | 1/1 | Complete | 2025-12-22 |
-| 7. NSTextView Caption Editor | 1/1 | Complete   | 2026-03-16 | - |
-| 8. Finder Context Menus | v1.4 | 0/? | Not started | - |
+| 7. NSTextView Caption Editor | v1.4 | 1/1 | Complete | 2026-03-16 |
+| 8. Finder Context Menus | v1.4 | 0/1 | Planning | - |
 | 9. Quick Look Preview | v1.4 | 0/? | Not started | - |
