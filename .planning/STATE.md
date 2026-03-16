@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Performance & Live Sync
 status: verifying
-stopped_at: "Completed 11-01: DirectoryWatcher + ImageCacheActor.remove(for:)"
-last_updated: "2026-03-16T22:05:30.977Z"
-last_activity: 2026-03-16 — Phase 10 Plan 02 complete (cache wiring + prefetch + spinner)
+stopped_at: "Completed 11-02 Task 1: watchdog wired into DatasetViewModel. Awaiting human-verify checkpoint (Task 2)."
+last_updated: "2026-03-16T22:18:23.526Z"
+last_activity: 2026-03-16 — Phase 11 Plan 02 complete (watchdog integration + diff rescan + selection repair)
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
   percent: 100
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-16)
 ## Current Position
 
 Phase: 11 of 12 (Filesystem Watchdog Structural Changes)
-Plan: 01 complete — DirectoryWatcher + ImageCacheActor.remove(for:)
-Status: In progress — Plan 01 done, Plan 02 next
-Last activity: 2026-03-16 — Phase 11 Plan 01 complete (DirectoryWatcher + targeted cache eviction)
+Plan: 02 complete (awaiting human-verify checkpoint) — watchdog wired into DatasetViewModel
+Status: Verifying — Plan 02 Task 1 done, human-verify checkpoint pending
+Last activity: 2026-03-16 — Phase 11 Plan 02 complete (watchdog integration + diff rescan + selection repair)
 
-Progress: [████████░░] 75% (3/4 plans complete)
+Progress: [██████████] 100% (4/4 plans complete)
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress: [████████░░] 75% (3/4 plans complete)
 | 10 (P01) | 1 | 5 min | 5 min |
 | 10 (P02) | 1 | 5 min | 5 min |
 | Phase 11 P01 | 3m | 1 tasks | 3 files |
+| Phase 11 P02 | 6m | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,10 @@ Progress: [████████░░] 75% (3/4 plans complete)
 | 11 | DispatchSource VNODE .write event mask fires reliably for file add/delete | Empirically validated by DirectoryWatcherTests — blocker resolved |
 | 11 | cancel-and-reschedule DispatchWorkItem for debounce (not Timer) | Stays on watcher serial queue, no main thread coupling |
 | 11 | O_EVTONLY file descriptor for directory watching | Prevents directory from blocking unmount |
+| 11 | Two separate watchers: contentWatcher on directoryURL, treeWatcher on rootDirectoryURL (only when they differ) | Content watcher handles file list; tree watcher handles folder structure; shared serial queue prevents races |
+| 11 | Force-evict all surviving URL cache entries on every rescan | .write event implies directory changed; cheap eviction guarantees replaced files never show stale content |
+| 11 | Selection repair matches by imageURL not UUID | scanCurrentDirectory regenerates UUIDs on every call; post-rescan selection must match by stable imageURL identity |
+| 11 | isRescanning guard prevents bounce-back infinite loop | Reading directory contents can trigger .write VNODE events on some FS implementations |
 
 ### Blockers/Concerns
 
@@ -98,6 +103,6 @@ Progress: [████████░░] 75% (3/4 plans complete)
 
 ## Session Continuity
 
-Last session: 2026-03-16T22:05:30.975Z
-Stopped at: Completed 11-01: DirectoryWatcher + ImageCacheActor.remove(for:)
-Next: Phase 11 Plan 02 — wire DirectoryWatcher into DatasetViewModel (live sync)
+Last session: 2026-03-16T22:18:23.524Z
+Stopped at: Completed 11-02 Task 1: watchdog wired into DatasetViewModel. Awaiting human-verify checkpoint (Task 2).
+Next: Human verification of 8 test scenarios (file add/delete/bulk/navigation/tree/replacement/caption). After approval, Phase 11 complete; Phase 12 next.

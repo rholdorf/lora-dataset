@@ -15,6 +15,7 @@
     "always_confirm_external_services": true
   },
   "workflow": {
-    "research": true
+    "research": true,
+    "_auto_chain_active": false
   }
 }
