@@ -25,9 +25,9 @@ Requirements for v1.4 Native OS Integration. Each maps to roadmap phases.
 
 ### Quick Look
 
-- [x] **QLPV-01**: User can press spacebar to open Quick Look preview of selected image
-- [x] **QLPV-02**: User can press spacebar again or Escape to dismiss the preview
-- [x] **QLPV-03**: Quick Look shows the native floating QLPreviewPanel (not a sheet)
+- [ ] **QLPV-01**: User can press spacebar to open Quick Look preview of selected image
+- [ ] **QLPV-02**: User can press spacebar again or Escape to dismiss the preview
+- [ ] **QLPV-03**: Quick Look shows the native floating QLPreviewPanel (not a sheet)
 
 ## Future Requirements
 
@@ -64,9 +64,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CTXM-03 | Phase 8 | Complete |
 | CTXM-04 | Phase 8 | Complete |
 | CTXM-05 | Phase 8 | Complete |
-| QLPV-01 | Phase 9 | Complete |
-| QLPV-02 | Phase 9 | Complete |
-| QLPV-03 | Phase 9 | Complete |
+| QLPV-01 | Phase 9 | Pending |
+| QLPV-02 | Phase 9 | Pending |
+| QLPV-03 | Phase 9 | Pending |
 
 **Coverage:**
 - v1.4 requirements: 13 total

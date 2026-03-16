@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import Quartz
 import UniformTypeIdentifiers
 
 struct ContentView: View {
@@ -57,7 +56,7 @@ struct ContentView: View {
                                     Divider()
 
                                     Button {
-                                        vm.toggleQuickLook()
+                                        vm.quickLook(url: pair.imageURL)
                                     } label: {
                                         Label("Quick Look", systemImage: "eye")
                                     }
@@ -66,10 +65,6 @@ struct ContentView: View {
                         }
                     }
                     .listStyle(.sidebar)
-                    .onKeyPress(.space) {
-                        vm.toggleQuickLook()
-                        return .handled
-                    }
                     .onChange(of: vm.pairs) {
                         // Scroll to selected item when pairs are loaded (session restore)
                         if let id = vm.selectedID {
@@ -130,8 +125,6 @@ struct ContentView: View {
         .onAppear {
             selectedFileID = vm.selectedID
             loadImageForSelection()
-            // Wire AppDelegate to ViewModel for QL panel data source
-            (NSApp.delegate as? AppDelegate)?.viewModel = vm
         }
         .onChange(of: selectedFileID) {
             // Sync local selection to ViewModel
@@ -341,20 +334,6 @@ struct DetailView: View {
                     }
                     .frame(width: 400, height: 400)
                     .padding()
-                    .focusable()
-                    .onKeyPress(.space) {
-                        vm.toggleQuickLook()
-                        return .handled
-                    }
-                    .onKeyPress(.escape) {
-                        if QLPreviewPanel.sharedPreviewPanelExists(),
-                           let panel = QLPreviewPanel.shared(),
-                           panel.isVisible {
-                            panel.orderOut(nil)
-                            return .handled
-                        }
-                        return .ignored
-                    }
 
                     VStack(alignment: .leading) {
                         Text("Caption / descrição:")

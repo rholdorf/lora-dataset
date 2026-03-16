@@ -1,23 +1,10 @@
 import SwiftUI
 import AppKit
-import Quartz
 
 /// NSTextView subclass that applies LoRA-safe and grammar settings after
 /// the view is added to a window — where NSTextView's user-defaults-backed
 /// properties actually take effect.
 private class CaptionTextView: NSTextView {
-    override func keyDown(with event: NSEvent) {
-        // Intercept spacebar to dismiss QL panel when visible (universal toggle)
-        if event.keyCode == 49,  // 49 = spacebar
-           QLPreviewPanel.sharedPreviewPanelExists(),
-           let panel = QLPreviewPanel.shared(),
-           panel.isVisible {
-            panel.orderOut(nil)
-            return
-        }
-        super.keyDown(with: event)
-    }
-
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard window != nil else { return }
