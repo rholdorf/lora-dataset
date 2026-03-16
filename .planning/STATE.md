@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Native OS Integration
 status: planning
-stopped_at: Phase 9 context gathered
-last_updated: "2026-03-16T12:14:22.177Z"
+stopped_at: "Phase 9 Plan 01 checkpoint: awaiting human verification of Quick Look behavior"
+last_updated: "2026-03-16T12:35:06.163Z"
 last_activity: 2026-03-15 — Roadmap created for v1.4 Native OS Integration
 progress:
   total_phases: 3
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
   percent: 0
 ---
 
@@ -59,6 +59,7 @@ Progress: [░░░░░░░░░░] 0% (v1.4)
 | Phase 07-01 P01 | 45 | 3 tasks | 4 files |
 | Phase 08-finder-context-menus P01 | 20 | 2 tasks | 3 files |
 | Phase 08-finder-context-menus P01 | 20 | 3 tasks | 3 files |
+| Phase 09-quick-look-preview P01 | 10 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,7 @@ Progress: [░░░░░░░░░░] 0% (v1.4)
 - [Phase 08-01]: openWithMenu as @ViewBuilder on ContentView — NSWorkspace calls inline acceptable since .contextMenu rebuilds each time
 - [Phase 08-01]: NSApp.keyWindow?.makeFirstResponder(nil) before QLPreviewPanel to prevent NSTextView hijack
 - [Phase 08-01]: QLPreviewHelper is deliberately minimal — Phase 9 will build full QLPreviewPanel with spacebar support
+- [Phase 09-01]: AppDelegate NSApplicationDelegateAdaptor is the correct QL responder chain anchor — sits at top of NSResponder chain so acceptsPreviewPanelControl is reached
 
 ### Blockers/Concerns Carried Forward
 
@@ -101,6 +103,6 @@ Progress: [░░░░░░░░░░] 0% (v1.4)
 
 ## Session Continuity
 
-Last session: 2026-03-16T12:14:22.175Z
-Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-quick-look-preview/09-CONTEXT.md
+Last session: 2026-03-16T12:34:58.583Z
+Stopped at: Phase 9 Plan 01 checkpoint: awaiting human verification of Quick Look behavior
+Resume file: None
