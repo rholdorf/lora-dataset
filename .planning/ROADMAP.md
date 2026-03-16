@@ -13,7 +13,7 @@
 
 ### Phases
 
-- [ ] **Phase 10: Image Cache + Prefetch** - Sub-50ms image display via LRU cache and background neighbor prefetch
+- [x] **Phase 10: Image Cache + Prefetch** - Sub-50ms image display via LRU cache and background neighbor prefetch (completed 2026-03-16)
 - [ ] **Phase 11: Filesystem Watchdog -- Structural Changes** - Silent file list updates when files are added or removed externally
 - [ ] **Phase 12: Filesystem Watchdog -- Caption Content Changes** - Automatic caption reload when external tools modify the selected caption file
 
@@ -28,7 +28,7 @@
   2. Navigating to an image that was two positions ahead loads without a visible loading pause (prefetch hit)
   3. The app does not consume unbounded memory when browsing a large dataset -- cache evicts under memory pressure
   4. Rapidly pressing arrow keys does not cause wrong images to flash or linger from stale prefetch tasks
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 10-01-PLAN.md -- ImageLoader + ImageCacheActor with LRU eviction, cost tracking, memory pressure, and unit tests
 - [ ] 10-02-PLAN.md -- Integration: cache-first loading, prefetch wiring, spinner overlay, folder-change cache clear
@@ -69,6 +69,6 @@ Plans:
 | 7. NSTextView Caption Editor | v1.4 | 1/1 | Complete | 2026-03-16 |
 | 8. Finder Context Menus | v1.4 | 1/1 | Complete | 2026-03-16 |
 | 9. Quick Look Preview | v1.4 | 1/1 | Complete | 2026-03-16 |
-| 10. Image Cache + Prefetch | 1/2 | In Progress|  | - |
+| 10. Image Cache + Prefetch | 2/2 | Complete   | 2026-03-16 | - |
 | 11. FS Watchdog -- Structural | v1.5 | 0/? | Not started | - |
 | 12. FS Watchdog -- Captions | v1.5 | 0/? | Not started | - |
