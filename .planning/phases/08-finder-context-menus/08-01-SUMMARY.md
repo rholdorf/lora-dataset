@@ -57,7 +57,7 @@ completed: 2026-03-16
 - **Duration:** ~20 min
 - **Started:** 2026-03-16T02:07:00Z
 - **Completed:** 2026-03-16T02:27:00Z
-- **Tasks:** 2 of 2 auto tasks complete (Task 3 is human-verify checkpoint)
+- **Tasks:** 3 of 3 complete (2 auto tasks + 1 human-verify checkpoint, approved)
 - **Files modified:** 3
 
 ## Accomplishments
@@ -66,6 +66,7 @@ completed: 2026-03-16
 - Added file row context menus with Reveal in Finder, Open With (full app list with icons), and Quick Look
 - Added folder row context menus with Open in Finder and Open in Terminal
 - Open With submenu shows default app first (bold), other apps alphabetically with icons, and Other... at bottom
+- Human verified all context menu behaviors: Reveal in Finder, Open With, Quick Look, Open in Finder, Open in Terminal all function correctly; left-click navigation unaffected
 
 ## Task Commits
 
@@ -73,6 +74,7 @@ Each task was committed atomically:
 
 1. **Task 1: Create QLPreviewHelper and add ViewModel action methods** - `a9cfaf7` (feat)
 2. **Task 2: Add context menus to file and folder rows** - `e4bc143` (feat)
+3. **Task 3: Verify all context menu behaviors** - checkpoint approved (no code changes)
 
 ## Files Created/Modified
 - `lora-dataset/lora-dataset/QLPreviewHelper.swift` - Minimal QLPreviewPanelDataSource for Quick Look; Phase 9 extends this
@@ -97,9 +99,9 @@ None
 None - no external service configuration required.
 
 ## Next Phase Readiness
-- Context menus compile and build cleanly
-- Human verification (Task 3 checkpoint) required before marking plan complete
+- All context menu requirements (CTXM-01 through CTXM-05) verified and complete
 - Phase 9 (Quick Look Panel) can extend QLPreviewHelper with spacebar support, NSResponder chain integration, and full panel lifecycle management
+- Blocker: validate empirically in Phase 9 whether .quickLookPreview modifier produces a floating panel or a sheet on macOS — manual NSResponder shim may be required
 
 ---
 *Phase: 08-finder-context-menus*
