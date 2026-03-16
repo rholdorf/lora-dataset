@@ -1,0 +1,79 @@
+# Requirements: LoRA Dataset Browser
+
+**Defined:** 2026-03-16
+**Core Value:** View images alongside their caption files and edit captions in place for LoRA training datasets
+
+## v1.5 Requirements
+
+Requirements for v1.5 Performance & Live Sync. Each maps to roadmap phases.
+
+### Cache & Prefetch
+
+- [ ] **CACHE-01**: Images load from in-memory LRU cache with sub-50ms display on cache hit
+- [ ] **CACHE-02**: Cache uses decoded pixel byte cost (width × height × 4) for memory accounting
+- [ ] **CACHE-03**: ±2 neighboring images are prefetched in background on selection change
+- [ ] **CACHE-04**: Images are decoded via CGImageSource at display size for faster loading
+- [ ] **CACHE-05**: Cache evicts entries under system memory pressure (partial on warning, full on critical)
+- [ ] **CACHE-06**: Stale prefetch tasks are cancelled when user navigates past them
+
+### Filesystem Watchdog
+
+- [ ] **WATCH-01**: Directory-level VNODE watcher detects file additions, deletions, and renames
+- [ ] **WATCH-02**: File list updates silently when files are added or removed externally
+- [ ] **WATCH-03**: Watchdog events are debounced (0.5s) to prevent UI thrashing
+- [ ] **WATCH-04**: Watchdog tears down and rebuilds when navigating to a different folder
+- [ ] **WATCH-05**: Caption file watcher detects external modifications to the selected caption
+- [ ] **WATCH-06**: Caption reloads silently when modified externally and caption is not dirty
+- [ ] **WATCH-07**: App's own save (Cmd+S) does not trigger a false reload (self-write suppression)
+- [ ] **WATCH-08**: When caption has unsaved edits and file changes externally, user is prompted before reload
+
+## Future Requirements
+
+### Performance Optimizations
+
+- **PERF-01**: Disk cache for decoded images (mtime invalidation, eviction policies)
+- **PERF-02**: Thumbnail strip in sidebar for visual preview
+
+### Watchdog Enhancements
+
+- **WEXT-01**: Cross-folder prefetch when navigating between directories
+- **WEXT-02**: User-configurable cache size slider
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Disk cache for decoded images | High complexity (mtime invalidation, eviction), low value given OS filesystem caching |
+| Thumbnail sidebar strip | Separate milestone, requires second cache at thumbnail resolution |
+| Cross-folder prefetch | Complex coordination, not worth effort for solo use |
+| User-configurable cache size | Automatic pressure-based eviction handles the right behavior |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| CACHE-01 | — | Pending |
+| CACHE-02 | — | Pending |
+| CACHE-03 | — | Pending |
+| CACHE-04 | — | Pending |
+| CACHE-05 | — | Pending |
+| CACHE-06 | — | Pending |
+| WATCH-01 | — | Pending |
+| WATCH-02 | — | Pending |
+| WATCH-03 | — | Pending |
+| WATCH-04 | — | Pending |
+| WATCH-05 | — | Pending |
+| WATCH-06 | — | Pending |
+| WATCH-07 | — | Pending |
+| WATCH-08 | — | Pending |
+
+**Coverage:**
+- v1.5 requirements: 14 total
+- Mapped to phases: 0
+- Unmapped: 14 ⚠️
+
+---
+*Requirements defined: 2026-03-16*
+*Last updated: 2026-03-16 after initial definition*
