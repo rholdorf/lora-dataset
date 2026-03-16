@@ -12,7 +12,7 @@
 
 ## Phases
 
-- [ ] **Phase 7: NSTextView Caption Editor** - Replace TextEditor with full-featured NSTextView for spell check, grammar, dictionary lookup, and LoRA-safe substitution settings
+- [x] **Phase 7: NSTextView Caption Editor** - Replace TextEditor with full-featured NSTextView for spell check, grammar, dictionary lookup, and LoRA-safe substitution settings (completed 2026-03-16)
 - [ ] **Phase 8: Finder Context Menus** - Add right-click context menus to sidebar file and folder rows with Reveal in Finder, Open in Finder, Open With, and Quick Look actions
 - [ ] **Phase 9: Quick Look Preview** - Wire spacebar and context menu to open the native floating QLPreviewPanel for the selected image
 
@@ -28,7 +28,7 @@
   3. Smart quotes and smart dashes do not activate when the user types quotation marks or double-hyphens in the caption editor
   4. Grammar issues show green underlines in the caption editor
   5. Spell checking language switches automatically when the user types in a different language without any manual setting
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 07-01-PLAN.md — Create NSTextView caption editor with LoRA-safe settings and integrate into ContentView
 
@@ -66,6 +66,6 @@ Plans:
 | 4. Polish | v1.1 | 1/1 | Complete | 2025-12-21 |
 | 5. Toolbar Integration | v1.2 | 1/1 | Complete | 2025-12-22 |
 | 6. Session Restoration | v1.3 | 1/1 | Complete | 2025-12-22 |
-| 7. NSTextView Caption Editor | v1.4 | 0/1 | Not started | - |
+| 7. NSTextView Caption Editor | 1/1 | Complete   | 2026-03-16 | - |
 | 8. Finder Context Menus | v1.4 | 0/? | Not started | - |
 | 9. Quick Look Preview | v1.4 | 0/? | Not started | - |

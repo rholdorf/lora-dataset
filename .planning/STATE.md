@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Native OS Integration
 status: planning
-stopped_at: Phase 7 context gathered
-last_updated: "2026-03-16T00:13:49.929Z"
+stopped_at: Completed tasks 1 and 2 of 07-01-PLAN.md; awaiting human-verify checkpoint (Task 3)
+last_updated: "2026-03-16T00:42:58.094Z"
 last_activity: 2026-03-15 — Roadmap created for v1.4 Native OS Integration
 progress:
   total_phases: 3
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
   percent: 0
 ---
 
@@ -55,6 +55,7 @@ Progress: [░░░░░░░░░░] 0% (v1.4)
 - Trend: Simple feature additions execute quickly
 
 *Updated after each plan completion*
+| Phase 07-01 P01 | 4 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,9 @@ Progress: [░░░░░░░░░░] 0% (v1.4)
 | 06-01 | didSet observer for selectedID persistence | Automatic persistence without explicit calls |
 | 06-01 | Path-based matching for image restore | UUIDs regenerate on scan, paths are stable |
 | 06-01 | One-time restore pattern | Clear lastSelectedImagePath after matching to prevent loops |
+- [Phase 07-01]: makeNSViewForTesting() helper exposes NSView config for unit tests without NSViewRepresentable.Context
+- [Phase 07-01]: substitutionsVerified flag re-applies LoRA-safe NSTextView settings once after first updateNSView (guards against macOS reset)
+- [Phase 07-01]: Monospace font size 13 used for CaptionEditorView — appropriate for LoRA training data captions
 
 ### Blockers/Concerns Carried Forward
 
@@ -88,6 +92,6 @@ Progress: [░░░░░░░░░░] 0% (v1.4)
 
 ## Session Continuity
 
-Last session: 2026-03-16T00:13:49.928Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-nstextview-caption-editor/07-CONTEXT.md
+Last session: 2026-03-16T00:42:58.092Z
+Stopped at: Completed tasks 1 and 2 of 07-01-PLAN.md; awaiting human-verify checkpoint (Task 3)
+Resume file: None
