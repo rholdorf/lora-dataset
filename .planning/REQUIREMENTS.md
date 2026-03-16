@@ -9,11 +9,11 @@ Requirements for v1.4 Native OS Integration. Each maps to roadmap phases.
 
 ### Caption Editor
 
-- [ ] **EDIT-01**: Caption text uses native NSTextView with continuous spell checking (red underlines on unknown words)
-- [ ] **EDIT-02**: Caption text has grammar checking enabled (green underlines)
-- [ ] **EDIT-03**: User can right-click for "Look Up" dictionary definitions on any word
-- [ ] **EDIT-04**: Smart quotes and smart dashes are disabled by default to protect LoRA training data
-- [ ] **EDIT-05**: Auto-language detection works natively via NSSpellChecker
+- [x] **EDIT-01**: Caption text uses native NSTextView with continuous spell checking (red underlines on unknown words)
+- [x] **EDIT-02**: Caption text has grammar checking enabled (green underlines)
+- [x] **EDIT-03**: User can right-click for "Look Up" dictionary definitions on any word
+- [x] **EDIT-04**: Smart quotes and smart dashes are disabled by default to protect LoRA training data
+- [x] **EDIT-05**: Auto-language detection works natively via NSSpellChecker
 
 ### Context Menu
 
@@ -54,11 +54,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EDIT-01 | Phase 7 | Pending |
-| EDIT-02 | Phase 7 | Pending |
-| EDIT-03 | Phase 7 | Pending |
-| EDIT-04 | Phase 7 | Pending |
-| EDIT-05 | Phase 7 | Pending |
+| EDIT-01 | Phase 7 | Complete |
+| EDIT-02 | Phase 7 | Complete |
+| EDIT-03 | Phase 7 | Complete |
+| EDIT-04 | Phase 7 | Complete |
+| EDIT-05 | Phase 7 | Complete |
 | CTXM-01 | Phase 8 | Pending |
 | CTXM-02 | Phase 8 | Pending |
 | CTXM-03 | Phase 8 | Pending |

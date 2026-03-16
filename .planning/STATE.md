@@ -4,7 +4,7 @@ milestone: v1.4
 milestone_name: Native OS Integration
 status: planning
 stopped_at: Completed 07-01-PLAN.md (NSTextView Caption Editor) — all 3 tasks done including human verification
-last_updated: "2026-03-16T01:22:53.837Z"
+last_updated: "2026-03-16T01:27:32.863Z"
 last_activity: 2026-03-15 — Roadmap created for v1.4 Native OS Integration
 progress:
   total_phases: 3
