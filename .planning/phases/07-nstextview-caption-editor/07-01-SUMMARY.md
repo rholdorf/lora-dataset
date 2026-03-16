@@ -52,11 +52,11 @@ completed: 2026-03-16
 
 ## Performance
 
-- **Duration:** 4 min
-- **Started:** 2026-03-16T00:37:55Z
-- **Completed:** 2026-03-16T00:41:53Z
-- **Tasks:** 2 of 3 (Task 3 awaiting human verification)
-- **Files modified:** 3
+- **Duration:** ~45 min (including human verification)
+- **Started:** 2026-03-15T21:38:46Z
+- **Completed:** 2026-03-16T00:42:00Z
+- **Tasks:** 3 of 3 (all complete including human verification)
+- **Files modified:** 4
 
 ## Accomplishments
 
@@ -72,14 +72,16 @@ Each task was committed atomically:
 1. **TDD RED - Failing tests for CaptionEditorView** - `b374302` (test)
 2. **Task 1: CaptionEditorView implementation** - `2d87be6` (feat)
 3. **Task 2: Replace TextEditor in ContentView** - `e07ab08` (feat)
-
-_Note: Task 3 is a human-verify checkpoint — awaiting user confirmation_
+4. **Fix: Spelling & Grammar menu** - `520cfcc` (fix) - Added TextEditingCommands to lora_datasetApp
+5. **Fix: Grammar checking reliability** - `659ee54` (fix) - Used NSTextView subclass for reliable grammar checking
+6. **Task 3: Human verification** - APPROVED by user (all EDIT-01 through EDIT-05 confirmed in running app)
 
 ## Files Created/Modified
 
-- `lora-dataset/lora-dataset/CaptionEditorView.swift` - NSViewRepresentable wrapping NSTextView with all LoRA-safe settings, coordinator pattern, per-image undo isolation
+- `lora-dataset/lora-dataset/CaptionEditorView.swift` - NSViewRepresentable wrapping NSTextView with all LoRA-safe settings, coordinator pattern, per-image undo isolation; uses NSTextView subclass for reliable grammar checking
 - `lora-dataset/lora-datasetTests/CaptionEditorViewTests.swift` - Unit tests for NSTextView property configuration (7 tests, all passing)
 - `lora-dataset/lora-dataset/ContentView.swift` - TextEditor replaced with CaptionEditorView in DetailView
+- `lora-dataset/lora-dataset/lora_datasetApp.swift` - Added TextEditingCommands to expose Spelling & Grammar menu
 
 ## Decisions Made
 
@@ -102,8 +104,26 @@ _Note: Task 3 is a human-verify checkpoint — awaiting user confirmation_
 
 ---
 
-**Total deviations:** 1 auto-fixed (1 blocking)
-**Impact on plan:** Necessary Swift API name correction. No scope creep.
+**2. [Rule 1 - Bug] Spelling & Grammar menu not appearing in app menu bar**
+- **Found during:** Task 3 (human verification)
+- **Issue:** The Edit > Spelling and Grammar submenu was absent; `CaptionEditorView` NSTextView had the capabilities but no SwiftUI command group wired it up
+- **Fix:** Added `.commands { TextEditingCommands() }` to the `WindowGroup` in `lora_datasetApp.swift`
+- **Files modified:** lora-dataset/lora-dataset/lora_datasetApp.swift
+- **Verification:** Menu appeared after change; human verified in running app
+- **Committed in:** 520cfcc
+
+**3. [Rule 1 - Bug] Grammar underlines not reliable with bare NSTextView**
+- **Found during:** Task 3 (human verification)
+- **Issue:** Grammar check green underlines were intermittently absent when using a plain NSTextView instance
+- **Fix:** Introduced an NSTextView subclass (`CaptionNSTextView`) to improve reliability of grammar checking state
+- **Files modified:** lora-dataset/lora-dataset/CaptionEditorView.swift
+- **Verification:** Grammar underlines consistent in running app; human confirmed
+- **Committed in:** 659ee54
+
+---
+
+**Total deviations:** 3 auto-fixed (1 blocking Swift API rename, 2 bugs found during human verification)
+**Impact on plan:** All fixes required for correct behavior. No scope creep.
 
 ## Issues Encountered
 
@@ -115,9 +135,10 @@ None - no external service configuration required.
 
 ## Next Phase Readiness
 
-- CaptionEditorView ships spell check, grammar check, Look Up (built-in), no smart substitutions
-- Task 3 (human-verify checkpoint) must be completed before plan is considered fully done
-- After user verifies the running app, this plan is complete and Phase 7 can continue
+- CaptionEditorView ships spell check, grammar check, Look Up (built-in), no smart substitutions — all verified in running app
+- All 5 EDIT requirements confirmed by human: EDIT-01 (spell underlines), EDIT-02 (grammar underlines), EDIT-03 (Look Up in context menu), EDIT-04 (no smart quotes/dashes), EDIT-05 (auto-language detection)
+- Undo isolation confirmed: undo does not bleed across image switches
+- Phase 7 Plan 01 complete — Phase 7 has no further plans; ready to proceed to Phase 8
 
 ---
 *Phase: 07-nstextview-caption-editor*
@@ -127,7 +148,11 @@ None - no external service configuration required.
 
 - CaptionEditorView.swift: FOUND
 - CaptionEditorViewTests.swift: FOUND
+- lora_datasetApp.swift (TextEditingCommands): FOUND
 - 07-01-SUMMARY.md: FOUND
 - Commit b374302 (TDD RED): FOUND
 - Commit 2d87be6 (feat implementation): FOUND
 - Commit e07ab08 (ContentView update): FOUND
+- Commit 520cfcc (TextEditingCommands fix): FOUND
+- Commit 659ee54 (grammar subclass fix): FOUND
+- Task 3: Human verification APPROVED

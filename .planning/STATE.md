@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Native OS Integration
 status: planning
-stopped_at: Completed tasks 1 and 2 of 07-01-PLAN.md; awaiting human-verify checkpoint (Task 3)
-last_updated: "2026-03-16T00:42:58.094Z"
+stopped_at: Completed 07-01-PLAN.md (NSTextView Caption Editor) — all 3 tasks done including human verification
+last_updated: "2026-03-16T01:22:53.837Z"
 last_activity: 2026-03-15 — Roadmap created for v1.4 Native OS Integration
 progress:
   total_phases: 3
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0% (v1.4)
 
 *Updated after each plan completion*
 | Phase 07-01 P01 | 4 | 3 tasks | 3 files |
+| Phase 07-01 P01 | 45 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,8 @@ Progress: [░░░░░░░░░░] 0% (v1.4)
 - [Phase 07-01]: makeNSViewForTesting() helper exposes NSView config for unit tests without NSViewRepresentable.Context
 - [Phase 07-01]: substitutionsVerified flag re-applies LoRA-safe NSTextView settings once after first updateNSView (guards against macOS reset)
 - [Phase 07-01]: Monospace font size 13 used for CaptionEditorView — appropriate for LoRA training data captions
+- [Phase 07-01]: TextEditingCommands added to WindowGroup to expose Spelling & Grammar menu in macOS menu bar
+- [Phase 07-01]: NSTextView subclass (CaptionNSTextView) used for reliable grammar check underline behavior
 
 ### Blockers/Concerns Carried Forward
 
@@ -92,6 +95,6 @@ Progress: [░░░░░░░░░░] 0% (v1.4)
 
 ## Session Continuity
 
-Last session: 2026-03-16T00:42:58.092Z
-Stopped at: Completed tasks 1 and 2 of 07-01-PLAN.md; awaiting human-verify checkpoint (Task 3)
+Last session: 2026-03-16T01:22:53.835Z
+Stopped at: Completed 07-01-PLAN.md (NSTextView Caption Editor) — all 3 tasks done including human verification
 Resume file: None
