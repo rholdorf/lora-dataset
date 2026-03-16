@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Performance & Live Sync
-status: defining_requirements
-stopped_at: Defining requirements
+status: ready_to_plan
+stopped_at: Roadmap created, ready to plan Phase 10
 last_updated: "2026-03-16"
-last_activity: 2026-03-16 — Milestone v1.5 started
+last_activity: 2026-03-16 — v1.5 roadmap created (3 phases, 14 requirements)
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,14 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** View images alongside their caption files and edit captions in place for LoRA training datasets
-**Current focus:** Defining requirements for v1.5
+**Current focus:** Phase 10 — Image Cache + Prefetch
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-16 — Milestone v1.5 started
+Phase: 10 of 12 (Image Cache + Prefetch)
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-03-16 — v1.5 roadmap created
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -59,19 +61,22 @@ Last activity: 2026-03-16 — Milestone v1.5 started
 |-------|----------|-----------|
 | 07 | NSTextView subclass for grammar underlines | Standard NSTextView doesn't reliably show grammar check |
 | 07 | LoRA-safe defaults (no smart quotes) | Protects training data from punctuation corruption |
-| 07 | Monospace font size 13 | Appropriate for LoRA training data captions |
 | 08 | QLPreviewHelper as minimal data source | Simple approach that works; no AppDelegate needed |
-| 08 | @ViewBuilder for context menu helpers | NSWorkspace calls inline acceptable since .contextMenu rebuilds |
-| 09 | Kept QLPreviewHelper over AppDelegate approach | AppDelegate responder chain showed blank panel |
 | 09 | NSEvent local key monitor for QL navigation | QLPreviewPanel steals focus; monitor intercepts keys reliably |
 | 09 | Async image loading via Task.detached | Prevents main thread blocking during rapid navigation |
 
-### Blockers/Concerns Carried Forward
+### Key Decisions Pending (v1.5)
 
-None.
+- Phase 10: adaptive cache sizing (0.15 * physicalMemory) vs. fixed 200 MB limit — decide before coding
+- Phase 10: CGImageSource thumbnail decode path vs. NSImage(contentsOf:) — add only if profiling shows residual lag
+- Phase 12: exact UX for dirty-caption conflict prompt (style, button labels, dismiss behavior)
+
+### Blockers/Concerns
+
+- Phase 11: empirically validate DispatchSource VNODE `.write` event fires on file add/delete before building dependent logic
 
 ## Session Continuity
 
 Last session: 2026-03-16
-Stopped at: Defining requirements for v1.5
-Next: Complete requirements definition → roadmap
+Stopped at: Roadmap created for v1.5
+Next: `/gsd:plan-phase 10`

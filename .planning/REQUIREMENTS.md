@@ -54,26 +54,26 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CACHE-01 | — | Pending |
-| CACHE-02 | — | Pending |
-| CACHE-03 | — | Pending |
-| CACHE-04 | — | Pending |
-| CACHE-05 | — | Pending |
-| CACHE-06 | — | Pending |
-| WATCH-01 | — | Pending |
-| WATCH-02 | — | Pending |
-| WATCH-03 | — | Pending |
-| WATCH-04 | — | Pending |
-| WATCH-05 | — | Pending |
-| WATCH-06 | — | Pending |
-| WATCH-07 | — | Pending |
-| WATCH-08 | — | Pending |
+| CACHE-01 | Phase 10 | Pending |
+| CACHE-02 | Phase 10 | Pending |
+| CACHE-03 | Phase 10 | Pending |
+| CACHE-04 | Phase 10 | Pending |
+| CACHE-05 | Phase 10 | Pending |
+| CACHE-06 | Phase 10 | Pending |
+| WATCH-01 | Phase 11 | Pending |
+| WATCH-02 | Phase 11 | Pending |
+| WATCH-03 | Phase 11 | Pending |
+| WATCH-04 | Phase 11 | Pending |
+| WATCH-05 | Phase 12 | Pending |
+| WATCH-06 | Phase 12 | Pending |
+| WATCH-07 | Phase 12 | Pending |
+| WATCH-08 | Phase 12 | Pending |
 
 **Coverage:**
 - v1.5 requirements: 14 total
-- Mapped to phases: 0
-- Unmapped: 14 ⚠️
+- Mapped to phases: 14
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-16*
-*Last updated: 2026-03-16 after initial definition*
+*Last updated: 2026-03-16 after roadmap creation*
