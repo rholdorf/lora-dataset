@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Quartz
 import UniformTypeIdentifiers
 
 struct ContentView: View {
@@ -65,6 +66,10 @@ struct ContentView: View {
                         }
                     }
                     .listStyle(.sidebar)
+                    .onKeyPress(.space) {
+                        vm.toggleQuickLook()
+                        return .handled
+                    }
                     .onChange(of: vm.pairs) {
                         // Scroll to selected item when pairs are loaded (session restore)
                         if let id = vm.selectedID {
@@ -336,6 +341,20 @@ struct DetailView: View {
                     }
                     .frame(width: 400, height: 400)
                     .padding()
+                    .focusable()
+                    .onKeyPress(.space) {
+                        vm.toggleQuickLook()
+                        return .handled
+                    }
+                    .onKeyPress(.escape) {
+                        if QLPreviewPanel.sharedPreviewPanelExists(),
+                           let panel = QLPreviewPanel.shared(),
+                           panel.isVisible {
+                            panel.orderOut(nil)
+                            return .handled
+                        }
+                        return .ignored
+                    }
 
                     VStack(alignment: .leading) {
                         Text("Caption / descrição:")
