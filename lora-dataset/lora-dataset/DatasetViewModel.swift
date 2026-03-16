@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import AppKit
+import Quartz
 
 @MainActor
 class DatasetViewModel: ObservableObject {
@@ -322,6 +323,57 @@ class DatasetViewModel: ObservableObject {
             pair.captionText = reloaded
             pair.savedCaptionText = reloaded
             pairs[idx] = pair
+        }
+    }
+
+    // MARK: - Context Menu Actions
+
+    let qlPreviewHelper = QLPreviewHelper()
+
+    func revealInFinder(url: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    func openInFinder(url: URL) {
+        NSWorkspace.shared.open(url)
+    }
+
+    func openInTerminal(url: URL) {
+        guard let terminalURL = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: "com.apple.Terminal"
+        ) else { return }
+        NSWorkspace.shared.open(
+            [url],
+            withApplicationAt: terminalURL,
+            configuration: NSWorkspace.OpenConfiguration()
+        ) { _, error in
+            if let error { print("[openInTerminal] error:", error) }
+        }
+    }
+
+    func openWith(fileURL: URL, appURL: URL) {
+        NSWorkspace.shared.open(
+            [fileURL],
+            withApplicationAt: appURL,
+            configuration: NSWorkspace.OpenConfiguration()
+        ) { _, error in
+            if let error { print("[openWith] error:", error) }
+        }
+    }
+
+    func quickLook(url: URL) {
+        // Resign first responder to prevent NSTextView from hijacking QLPreviewPanel
+        NSApp.keyWindow?.makeFirstResponder(nil)
+
+        let panel = QLPreviewPanel.shared()!
+        if panel.isVisible {
+            panel.orderOut(nil)
+        } else {
+            qlPreviewHelper.previewURL = url
+            panel.dataSource = qlPreviewHelper
+            panel.currentPreviewItemIndex = 0
+            panel.reloadData()
+            panel.makeKeyAndOrderFront(nil)
         }
     }
 
