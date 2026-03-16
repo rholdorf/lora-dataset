@@ -4,7 +4,7 @@ milestone: v1.4
 milestone_name: Native OS Integration
 status: planning
 stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-03-16T11:41:07.010Z"
+last_updated: "2026-03-16T11:44:06.152Z"
 last_activity: 2026-03-15 — Roadmap created for v1.4 Native OS Integration
 progress:
   total_phases: 3
