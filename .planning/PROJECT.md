@@ -31,6 +31,16 @@
 **Known Issues:**
 - None currently identified
 
+## Current Milestone: v1.5 Performance & Live Sync
+
+**Goal:** Finder-speed image navigation with intelligent caching and real-time filesystem monitoring for external changes.
+
+**Target features:**
+- Image and caption cache with LRU eviction and memory pressure awareness
+- Prefetch of neighboring images for instant navigation
+- Filesystem watchdog detecting modifications, additions, and removals
+- Live update of displayed image when modified externally
+
 ---
 
 <details>
@@ -166,4 +176,4 @@ Built as a solo developer tool for personal LoRA training workflow.
 
 ---
 *Initialized: 2025-12-20*
-*Last updated: 2026-03-16 after v1.4 milestone*
+*Last updated: 2026-03-16 after v1.5 milestone start*

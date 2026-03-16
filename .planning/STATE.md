@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: Native OS Integration
-status: complete
-stopped_at: Milestone v1.4 complete
+milestone: v1.5
+milestone_name: Performance & Live Sync
+status: defining_requirements
+stopped_at: Defining requirements
 last_updated: "2026-03-16"
-last_activity: 2026-03-16 — v1.4 milestone completed
+last_activity: 2026-03-16 — Milestone v1.5 started
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,15 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** View images alongside their caption files and edit captions in place for LoRA training datasets
-**Current focus:** Planning next milestone
+**Current focus:** Defining requirements for v1.5
 
 ## Current Position
 
-Milestone: v1.4 Native OS Integration — COMPLETE
-All 3 phases, 3 plans complete.
-Last activity: 2026-03-16 — v1.4 milestone completed
-
-Progress: [██████████] 100% (v1.4)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-16 — Milestone v1.5 started
 
 ## Performance Metrics
 
@@ -69,10 +68,10 @@ Progress: [██████████] 100% (v1.4)
 
 ### Blockers/Concerns Carried Forward
 
-None — milestone complete.
+None.
 
 ## Session Continuity
 
 Last session: 2026-03-16
-Stopped at: Milestone v1.4 complete
-Next: /gsd:new-milestone
+Stopped at: Defining requirements for v1.5
+Next: Complete requirements definition → roadmap
