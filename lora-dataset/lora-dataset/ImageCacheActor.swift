@@ -81,6 +81,14 @@ actor ImageCacheActor {
         evictIfNeeded()
     }
 
+    /// Removes a single cached entry by URL. Used for targeted eviction
+    /// when an external file deletion is detected by the watchdog.
+    func remove(for url: URL) {
+        guard storage[url] != nil else { return }
+        evict(url)
+        print("[cache] removed \(url.lastPathComponent) on external deletion")
+    }
+
     /// Removes all entries and resets totalCost to 0.
     func clear() {
         storage.removeAll()
