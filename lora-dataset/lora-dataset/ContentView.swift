@@ -56,7 +56,7 @@ struct ContentView: View {
                                     Divider()
 
                                     Button {
-                                        vm.quickLook(url: pair.imageURL)
+                                        vm.toggleQuickLook()
                                     } label: {
                                         Label("Quick Look", systemImage: "eye")
                                     }
@@ -125,6 +125,8 @@ struct ContentView: View {
         .onAppear {
             selectedFileID = vm.selectedID
             loadImageForSelection()
+            // Wire AppDelegate to ViewModel for QL panel data source
+            (NSApp.delegate as? AppDelegate)?.viewModel = vm
         }
         .onChange(of: selectedFileID) {
             // Sync local selection to ViewModel

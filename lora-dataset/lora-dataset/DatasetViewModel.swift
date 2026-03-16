@@ -12,6 +12,16 @@ class DatasetViewModel: ObservableObject {
             if let pair = selectedPair {
                 UserDefaults.standard.set(pair.imageURL.path, forKey: "lastSelectedImagePath")
             }
+            // Update QL panel if visible to follow selection
+            if QLPreviewPanel.sharedPreviewPanelExists(),
+               let panel = QLPreviewPanel.shared(),
+               panel.isVisible {
+                if selectedPair != nil {
+                    panel.reloadData()
+                } else {
+                    panel.orderOut(nil)
+                }
+            }
         }
     }
     @Published var directoryURL: URL? = nil
@@ -211,6 +221,13 @@ class DatasetViewModel: ObservableObject {
     // Scan current directory for image/caption pairs
     // Note: Security-scoped access must be active before calling this
     private func scanCurrentDirectory() {
+        // Close QL panel when navigating to a new folder
+        if QLPreviewPanel.sharedPreviewPanelExists(),
+           let panel = QLPreviewPanel.shared(),
+           panel.isVisible {
+            panel.orderOut(nil)
+        }
+
         guard let folder = directoryURL else { return }
 
         let fm = FileManager.default
@@ -328,8 +345,6 @@ class DatasetViewModel: ObservableObject {
 
     // MARK: - Context Menu Actions
 
-    let qlPreviewHelper = QLPreviewHelper()
-
     func revealInFinder(url: URL) {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
@@ -361,18 +376,14 @@ class DatasetViewModel: ObservableObject {
         }
     }
 
-    func quickLook(url: URL) {
-        // Resign first responder to prevent NSTextView from hijacking QLPreviewPanel
+    func toggleQuickLook() {
+        guard selectedPair != nil else { return }
         NSApp.keyWindow?.makeFirstResponder(nil)
-
         let panel = QLPreviewPanel.shared()!
         if panel.isVisible {
             panel.orderOut(nil)
         } else {
-            qlPreviewHelper.previewURL = url
-            panel.dataSource = qlPreviewHelper
-            panel.currentPreviewItemIndex = 0
-            panel.reloadData()
+            panel.updateController()
             panel.makeKeyAndOrderFront(nil)
         }
     }

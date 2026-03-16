@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Quartz
 
 // FocusedValueKey for ViewModel access in menu commands
 struct DatasetViewModelKey: FocusedValueKey {
@@ -19,8 +20,48 @@ extension FocusedValues {
     }
 }
 
+// MARK: - AppDelegate: QL responder chain anchor
+
+class AppDelegate: NSObject, NSApplicationDelegate,
+                   QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+
+    weak var viewModel: DatasetViewModel?
+
+    // MARK: NSResponder (QL panel control)
+
+    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+        return true
+    }
+
+    override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        panel.dataSource = self
+        panel.delegate = self
+    }
+
+    override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        panel.dataSource = nil
+        panel.delegate = nil
+    }
+
+    // MARK: QLPreviewPanelDataSource
+
+    @MainActor
+    func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
+        return viewModel?.selectedPair != nil ? 1 : 0
+    }
+
+    @MainActor
+    func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
+        return viewModel?.selectedPair?.imageURL as QLPreviewItem?
+    }
+}
+
+// MARK: - App
+
 @main
 struct lora_datasetApp: App {
+
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     init() {
         // Suprime logs de sistema desnecessários durante desenvolvimento
