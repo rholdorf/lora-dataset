@@ -1,6 +1,33 @@
 import SwiftUI
 import AppKit
 
+/// NSTextView subclass that applies LoRA-safe and grammar settings after
+/// the view is added to a window — where NSTextView's user-defaults-backed
+/// properties actually take effect.
+private class CaptionTextView: NSTextView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard window != nil else { return }
+
+        // EDIT-01: Continuous spell checking (red underlines)
+        isContinuousSpellCheckingEnabled = true
+
+        // EDIT-02: Grammar checking (green underlines)
+        isGrammarCheckingEnabled = true
+
+        // EDIT-05: Auto-language detection
+        NSSpellChecker.shared.automaticallyIdentifiesLanguages = true
+
+        // LoRA-safe: disable all silent substitutions
+        isAutomaticSpellingCorrectionEnabled = false
+        isAutomaticQuoteSubstitutionEnabled = false
+        isAutomaticDashSubstitutionEnabled = false
+        isAutomaticTextReplacementEnabled = false
+        isAutomaticLinkDetectionEnabled = false
+        isAutomaticDataDetectionEnabled = false
+    }
+}
+
 /// NSViewRepresentable wrapping NSTextView with LoRA-safe settings.
 ///
 /// Features:
@@ -17,8 +44,15 @@ struct CaptionEditorView: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSTextView.scrollableTextView()
-        let tv = scrollView.documentView as! NSTextView
+        // Build the text system manually so we can use our CaptionTextView subclass
+        let textStorage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        textStorage.addLayoutManager(layoutManager)
+        let textContainer = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        textContainer.widthTracksTextView = true
+        layoutManager.addTextContainer(textContainer)
+
+        let tv = CaptionTextView(frame: .zero, textContainer: textContainer)
 
         // Delegate: text change sync + dedicated undo manager
         tv.delegate = context.coordinator
@@ -26,31 +60,14 @@ struct CaptionEditorView: NSViewRepresentable {
         // Plain text — no rich text formatting
         tv.isRichText = false
 
-        // Undo enabled (NSTextView registers edits with the coordinator's NSUndoManager)
+        // Undo enabled
         tv.allowsUndo = true
-
-        // EDIT-01: Continuous spell checking (red underlines)
-        tv.isContinuousSpellCheckingEnabled = true
-
-        // EDIT-02: Grammar checking (green underlines)
-        tv.isGrammarCheckingEnabled = true
-
-        // EDIT-05: Auto-language detection (NSSpellChecker global setting)
-        // Typically already true by default; set explicitly to be certain
-        NSSpellChecker.shared.automaticallyIdentifiesLanguages = true
-
-        // LoRA-safe: disable all silent substitutions that could corrupt training data
-        tv.isAutomaticSpellingCorrectionEnabled = false
-        tv.isAutomaticQuoteSubstitutionEnabled = false
-        tv.isAutomaticDashSubstitutionEnabled = false
-        tv.isAutomaticTextReplacementEnabled = false
-        tv.isAutomaticLinkDetectionEnabled = false
-        tv.isAutomaticDataDetectionEnabled = false
 
         // Layout: vertically resizable, no horizontal scrolling
         tv.isVerticallyResizable = true
         tv.isHorizontallyResizable = false
         tv.autoresizingMask = [.width]
+        tv.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
 
         // Font: monospace is appropriate for LoRA training data captions
         tv.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
@@ -59,31 +76,23 @@ struct CaptionEditorView: NSViewRepresentable {
         tv.textContainerInset = NSSize(width: 8, height: 8)
 
         // Background: transparent to blend with SwiftUI
-        scrollView.drawsBackground = false
         tv.drawsBackground = false
 
         // Initial text
         tv.string = text
 
+        // Wrap in scroll view
+        let scrollView = NSScrollView()
+        scrollView.documentView = tv
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.drawsBackground = false
+
         return scrollView
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        let tv = nsView.documentView as! NSTextView
-
-        // Re-apply substitution settings defensively in case SwiftUI update cycles reset them
-        // Guard with firstSetupDone to only run this once after makeNSView
-        if !context.coordinator.substitutionsVerified {
-            context.coordinator.substitutionsVerified = true
-            tv.isContinuousSpellCheckingEnabled = true
-            tv.isGrammarCheckingEnabled = true
-            tv.isAutomaticSpellingCorrectionEnabled = false
-            tv.isAutomaticQuoteSubstitutionEnabled = false
-            tv.isAutomaticDashSubstitutionEnabled = false
-            tv.isAutomaticTextReplacementEnabled = false
-            tv.isAutomaticLinkDetectionEnabled = false
-            tv.isAutomaticDataDetectionEnabled = false
-        }
+        guard let tv = nsView.documentView as? NSTextView else { return }
 
         // Only update text when the change originated outside the text view
         // (e.g., image switch, caption reload from disk)
@@ -104,8 +113,6 @@ struct CaptionEditorView: NSViewRepresentable {
         var parent: CaptionEditorView
         /// Guards against feedback loop: updateNSView -> tv.string -> textDidChange -> updateNSView
         var isUpdatingProgrammatically = false
-        /// Tracks whether re-application of substitution settings has been done after first update
-        var substitutionsVerified = false
         /// Dedicated per-editor undo manager; isolated from the window's shared undo manager.
         /// Stored here so the same instance is returned on every undoManager(for:) call.
         let textViewUndoManager = UndoManager()
@@ -130,38 +137,40 @@ struct CaptionEditorView: NSViewRepresentable {
 // MARK: - Testing Support
 
 extension CaptionEditorView {
-    /// Creates an NSScrollView using the same makeNSView logic, for use in unit tests.
+    /// Creates an NSScrollView with a configured CaptionTextView, for use in unit tests.
     /// This avoids needing to construct an NSViewRepresentable.Context in test code.
     func makeNSViewForTesting() -> NSScrollView {
-        let scrollView = NSTextView.scrollableTextView()
-        let tv = scrollView.documentView as! NSTextView
+        let textStorage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        textStorage.addLayoutManager(layoutManager)
+        let textContainer = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        textContainer.widthTracksTextView = true
+        layoutManager.addTextContainer(textContainer)
 
+        let tv = CaptionTextView(frame: .zero, textContainer: textContainer)
         tv.isRichText = false
         tv.allowsUndo = true
-
         tv.isContinuousSpellCheckingEnabled = true
         tv.isGrammarCheckingEnabled = true
-
         NSSpellChecker.shared.automaticallyIdentifiesLanguages = true
-
         tv.isAutomaticSpellingCorrectionEnabled = false
         tv.isAutomaticQuoteSubstitutionEnabled = false
         tv.isAutomaticDashSubstitutionEnabled = false
         tv.isAutomaticTextReplacementEnabled = false
         tv.isAutomaticLinkDetectionEnabled = false
         tv.isAutomaticDataDetectionEnabled = false
-
         tv.isVerticallyResizable = true
         tv.isHorizontallyResizable = false
         tv.autoresizingMask = [.width]
-
         tv.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
         tv.textContainerInset = NSSize(width: 8, height: 8)
-
-        scrollView.drawsBackground = false
         tv.drawsBackground = false
-
         tv.string = text
+
+        let scrollView = NSScrollView()
+        scrollView.documentView = tv
+        scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = false
 
         return scrollView
     }
