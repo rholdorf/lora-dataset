@@ -7,84 +7,18 @@ struct ContentView: View {
     @State private var imageScale: CGFloat = 1.0
     @State private var imageOffset: CGSize = .zero
     @State private var loadedImage: NSImage? = nil
-    @State private var selectedFileID: UUID? = nil
     @State private var showSpinner: Bool = false
     @State private var loadError: Bool = false
     @State private var loadErrorFilename: String = ""
 
+    // In-flight image load task — cancelled on each new selection (LIFO behaviour).
+    @State private var currentLoadTask: Task<Void, Never>? = nil
+    // Debounced prefetch task — only fires after user pauses navigation.
+    @State private var prefetchDebounceTask: Task<Void, Never>? = nil
+
     var body: some View {
         NavigationSplitView {
-            VStack(spacing: 0) {
-                Divider()
-
-                // Sidebar with folders and files
-                ScrollViewReader { proxy in
-                    List(selection: $selectedFileID) {
-                        // Folders section - using recursive DisclosureGroup for expansion control
-                        if !vm.folderTree.isEmpty {
-                            Section("Pastas") {
-                                FolderTreeView(nodes: vm.folderTree, vm: vm)
-                            }
-                        }
-
-                        // Files section
-                        Section("Arquivos (\(vm.pairs.count))") {
-                            ForEach(vm.pairs) { pair in
-                                HStack(spacing: 4) {
-                                    Text(pair.imageURL.lastPathComponent)
-                                    if pair.isDirty || (pair.id == vm.selectedID && vm.editingIsDirty) {
-                                        Image(systemName: "circle.fill")
-                                            .font(.system(size: 6))
-                                            .foregroundColor(.orange)
-                                    }
-                                    Spacer()
-                                    if pair.captionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        Text("sem caption")
-                                            .font(.caption)
-                                            .italic()
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                .tag(pair.id)
-                                .id(pair.id)
-                                .contextMenu {
-                                    Button {
-                                        vm.revealInFinder(url: pair.imageURL)
-                                    } label: {
-                                        Label("Reveal in Finder", systemImage: "folder.badge.magnifyingglass")
-                                    }
-
-                                    openWithMenu(for: pair.imageURL)
-
-                                    Divider()
-
-                                    Button {
-                                        vm.quickLook(url: pair.imageURL)
-                                    } label: {
-                                        Label("Quick Look", systemImage: "eye")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .listStyle(.sidebar)
-                    .onKeyPress(.space) {
-                        vm.toggleQuickLook()
-                        return .handled
-                    }
-                    .onChange(of: vm.pairs) {
-                        // Scroll to selected item when pairs are loaded (session restore)
-                        if let id = vm.selectedID {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                withAnimation {
-                                    proxy.scrollTo(id, anchor: .center)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .frame(minWidth: 280)
+            SidebarView(vm: vm)
         } detail: {
             DetailView(
                 vm: vm,
@@ -125,7 +59,7 @@ struct ContentView: View {
                     Label("Recarregar", systemImage: "arrow.clockwise")
                 }
                 .help("Recarregar caption do disco")
-                .disabled(vm.selectedID == nil)
+                .disabled(vm.detailID == nil)
 
                 Button {
                     vm.saveSelected()
@@ -137,98 +71,238 @@ struct ContentView: View {
             }
         }
         .focusedValue(\.datasetViewModel, vm)
-        .onAppear {
-            selectedFileID = vm.selectedID
+        // When the debounced detailID actually changes, load the image.
+        .onChange(of: vm.detailID) {
             loadImageForSelection()
-        }
-        .onChange(of: selectedFileID) {
-            // Sync local selection to ViewModel
-            Task { @MainActor in
-                vm.selectedID = selectedFileID
-                loadImageForSelection()
-            }
-        }
-        .onChange(of: vm.selectedID) {
-            // Sync ViewModel selection to local (e.g., after folder navigation)
-            Task { @MainActor in
-                if selectedFileID != vm.selectedID {
-                    selectedFileID = vm.selectedID
-                }
-            }
-        }
-        .onChange(of: vm.pairs) {
-            // When pairs change, sync selection
-            Task { @MainActor in
-                selectedFileID = vm.selectedID
-                loadImageForSelection()
-            }
         }
     }
 
     private func loadImageForSelection() {
-        imageScale = 1.0
-        imageOffset = .zero
-        showSpinner = false
-        loadError = false
+        currentLoadTask?.cancel()
+        prefetchDebounceTask?.cancel()
 
-        guard let id = selectedFileID,
+        guard let id = vm.detailID,
               let pair = vm.pairs.first(where: { $0.id == id }) else {
             loadedImage = nil
+            if showSpinner    { showSpinner    = false }
+            if loadError      { loadError      = false }
+            if imageScale != 1.0 { imageScale  = 1.0  }
+            if imageOffset != .zero { imageOffset = .zero }
+            currentLoadTask = nil
+            prefetchDebounceTask = nil
             return
         }
 
         let url = pair.imageURL
         let capturedID = id
 
-        Task { @MainActor in
+        currentLoadTask = Task { @MainActor in
             // Fast path: cache hit
             if let cached = await vm.imageCache.image(for: url) {
-                guard self.selectedFileID == capturedID else { return }
+                guard !Task.isCancelled, self.vm.detailID == capturedID else { return }
+                if self.imageScale  != 1.0   { self.imageScale  = 1.0   }
+                if self.imageOffset != .zero  { self.imageOffset = .zero }
+                if self.showSpinner           { self.showSpinner = false }
+                if self.loadError             { self.loadError   = false }
                 self.loadedImage = cached
                 print("[cache] hit for \(url.lastPathComponent)")
-                // Trigger prefetch for neighbors
-                vm.triggerPrefetch(aroundID: capturedID)
+                scheduleDebouncedPrefetch(aroundID: capturedID)
                 return
             }
 
             print("[cache] miss for \(url.lastPathComponent)")
 
-            // Slow path: cache miss -- start 150ms delayed spinner
+            // Slow path: cache miss — start 150ms delayed spinner.
             let spinnerTask = Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 150_000_000)
-                guard self.selectedFileID == capturedID, self.loadedImage == nil else { return }
+                guard !Task.isCancelled,
+                      self.vm.detailID == capturedID else { return }
                 self.showSpinner = true
             }
 
-            // Load off-main-thread at display size (800 = 2x retina of 400pt frame)
             let result = await Task.detached(priority: .userInitiated) {
                 loadImage(url: url, maxPixelSize: 800)
             }.value
 
             spinnerTask.cancel()
-            guard self.selectedFileID == capturedID else { return }
-            self.showSpinner = false
+            guard !Task.isCancelled, self.vm.detailID == capturedID else { return }
+            if self.showSpinner { self.showSpinner = false }
 
             if let img = result {
+                if self.imageScale  != 1.0   { self.imageScale  = 1.0   }
+                if self.imageOffset != .zero  { self.imageOffset = .zero }
+                if self.loadError             { self.loadError   = false }
                 self.loadedImage = img
-                self.loadError = false
-                // Insert into cache for future hits
                 let cost = img.representations.first.map { $0.pixelsWide * $0.pixelsHigh * 4 }
                     ?? Int(img.size.width * img.size.height * 4)
                 await vm.imageCache.insert(img, cost: cost, for: url)
-                // Trigger prefetch for neighbors
-                vm.triggerPrefetch(aroundID: capturedID)
+                scheduleDebouncedPrefetch(aroundID: capturedID)
             } else {
-                // Load failure: show error state (per user decision)
                 self.loadedImage = nil
-                self.loadError = true
+                if self.imageScale  != 1.0   { self.imageScale  = 1.0   }
+                if self.imageOffset != .zero  { self.imageOffset = .zero }
+                if !self.loadError            { self.loadError   = true  }
                 self.loadErrorFilename = url.lastPathComponent
             }
         }
     }
 
-    @ViewBuilder
-    private func openWithMenu(for fileURL: URL) -> some View {
+    private func scheduleDebouncedPrefetch(aroundID id: UUID) {
+        prefetchDebounceTask?.cancel()
+        prefetchDebounceTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            vm.triggerPrefetch(aroundID: id)
+        }
+    }
+}
+
+// MARK: - Sidebar (owns selectedFileID — isolates per-keypress re-renders)
+
+/// Extracted into its own View so that arrow-key selection changes only
+/// re-evaluate this small view tree, NOT the entire ContentView (which
+/// includes the detail pane, toolbar, NavigationSplitView scaffolding).
+struct SidebarView: View {
+    @ObservedObject var vm: DatasetViewModel
+    @State private var selectedFileID: UUID? = nil
+    @State private var detailDebounceTask: Task<Void, Never>? = nil
+    @State private var isSyncingSelection: Bool = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider()
+
+            ScrollViewReader { proxy in
+                List(selection: $selectedFileID) {
+                    if !vm.folderTree.isEmpty {
+                        Section("Pastas") {
+                            FolderTreeView(nodes: vm.folderTree, vm: vm)
+                        }
+                    }
+
+                    Section("Arquivos (\(vm.pairs.count))") {
+                        ForEach(vm.pairs) { pair in
+                            FileRowView(pair: pair, isDetailSelected: pair.id == vm.detailID && vm.editingIsDirty)
+                                .tag(pair.id)
+                                .id(pair.id)
+                                .contextMenu {
+                                    Button {
+                                        vm.revealInFinder(url: pair.imageURL)
+                                    } label: {
+                                        Label("Reveal in Finder", systemImage: "folder.badge.magnifyingglass")
+                                    }
+
+                                    OpenWithMenu(fileURL: pair.imageURL, vm: vm)
+
+                                    Divider()
+
+                                    Button {
+                                        vm.quickLook(url: pair.imageURL)
+                                    } label: {
+                                        Label("Quick Look", systemImage: "eye")
+                                    }
+                                }
+                        }
+                    }
+                }
+                .listStyle(.sidebar)
+                .onKeyPress(.space) {
+                    vm.toggleQuickLook()
+                    return .handled
+                }
+                .onChange(of: vm.pairs) {
+                    if let id = vm.selectedID {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation {
+                                proxy.scrollTo(id, anchor: .center)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 280)
+        .onAppear {
+            selectedFileID = vm.selectedID
+            commitDetailID()
+        }
+        .onChange(of: selectedFileID) {
+            guard !isSyncingSelection else { return }
+            scheduleDetailDebounce()
+        }
+        .onChange(of: vm.selectedID) {
+            guard !isSyncingSelection else { return }
+            isSyncingSelection = true
+            if selectedFileID != vm.selectedID {
+                selectedFileID = vm.selectedID
+            }
+            isSyncingSelection = false
+            commitDetailID()
+        }
+        .onChange(of: vm.pairs) {
+            isSyncingSelection = true
+            selectedFileID = vm.selectedID
+            isSyncingSelection = false
+            commitDetailID()
+        }
+    }
+
+    private func scheduleDetailDebounce() {
+        detailDebounceTask?.cancel()
+        detailDebounceTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            guard !Task.isCancelled else { return }
+            isSyncingSelection = true
+            vm.selectedID = self.selectedFileID
+            vm.detailID = self.selectedFileID
+            isSyncingSelection = false
+        }
+    }
+
+    private func commitDetailID() {
+        detailDebounceTask?.cancel()
+        detailDebounceTask = nil
+        isSyncingSelection = true
+        vm.selectedID = selectedFileID
+        vm.detailID = selectedFileID
+        isSyncingSelection = false
+    }
+}
+
+// MARK: - File Row (minimal, no vm dependency for fast diffing)
+
+/// Each row is its own View struct so SwiftUI can skip re-evaluation
+/// when the row's inputs haven't changed (Equatable diffing).
+struct FileRowView: View {
+    let pair: ImageCaptionPair
+    let isDetailSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(pair.imageURL.lastPathComponent)
+            if pair.isDirty || isDetailSelected {
+                Image(systemName: "circle.fill")
+                    .font(.system(size: 6))
+                    .foregroundColor(.orange)
+            }
+            Spacer()
+            if pair.hasEmptyCaption {
+                Text("sem caption")
+                    .font(.caption)
+                    .italic()
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
+// MARK: - Open With Menu (lazy — only evaluated when menu is shown)
+
+struct OpenWithMenu: View {
+    let fileURL: URL
+    @ObservedObject var vm: DatasetViewModel
+
+    var body: some View {
         let apps = NSWorkspace.shared.urlsForApplications(toOpen: fileURL)
         let defaultApp = NSWorkspace.shared.urlForApplication(toOpen: fileURL)
         let otherApps = apps
@@ -293,8 +367,8 @@ struct ContentView: View {
     }
 }
 
-// Recursive folder tree view with manual disclosure (not DisclosureGroup)
-// This separates the disclosure toggle from folder navigation
+// MARK: - Folder Tree
+
 struct FolderTreeView: View {
     let nodes: [FileNode]
     @ObservedObject var vm: DatasetViewModel
@@ -303,7 +377,6 @@ struct FolderTreeView: View {
         ForEach(nodes) { node in
             FolderNodeView(node: node, vm: vm)
 
-            // Children (if expanded)
             if let children = node.children, !children.isEmpty, vm.isExpanded(path: node.url.path) {
                 FolderTreeView(nodes: children, vm: vm)
                     .padding(.leading, 16)
@@ -312,7 +385,6 @@ struct FolderTreeView: View {
     }
 }
 
-// Individual folder node - separate view to ensure proper state updates
 struct FolderNodeView: View {
     let node: FileNode
     @ObservedObject var vm: DatasetViewModel
@@ -327,7 +399,6 @@ struct FolderNodeView: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            // Disclosure chevron (only for folders with children)
             if hasChildren {
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
@@ -341,7 +412,6 @@ struct FolderNodeView: View {
                 Color.clear.frame(width: 12)
             }
 
-            // Folder label - navigation via tap gesture on the whole area
             Label(node.name, systemImage: "folder")
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -365,7 +435,8 @@ struct FolderNodeView: View {
     }
 }
 
-// Detail view for image and caption editing
+// MARK: - Detail View
+
 struct DetailView: View {
     @ObservedObject var vm: DatasetViewModel
     @Binding var loadedImage: NSImage?
@@ -379,14 +450,13 @@ struct DetailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if vm.selectedID != nil {
+            if vm.detailID != nil {
                 Text(captionFilename)
                     .font(.headline)
 
                 HSplitView {
                     Group {
                         if loadError {
-                            // Error state: warning icon + filename (per user decision)
                             VStack(spacing: 8) {
                                 Image(systemName: "exclamationmark.triangle")
                                     .font(.system(size: 40))
@@ -406,7 +476,6 @@ struct DetailView: View {
                             .clipped()
                             .overlay {
                                 if showSpinner {
-                                    // Spinner on dimmed previous image (per user decision)
                                     ZStack {
                                         Color.black.opacity(0.3)
                                         ProgressView()
@@ -415,7 +484,6 @@ struct DetailView: View {
                                 }
                             }
                         } else if showSpinner {
-                            // No previous image yet, but spinner should show
                             ZStack {
                                 Color.black.opacity(0.3)
                                     .frame(width: 400, height: 400)
@@ -430,8 +498,6 @@ struct DetailView: View {
                     .frame(width: 400, height: 400)
                     .padding()
 
-                    // Caption editing in its own view — isolates @State so
-                    // keystrokes only re-render the editor, not the image panel.
                     CaptionEditingContainer(vm: vm)
                 }
             } else {
@@ -442,7 +508,7 @@ struct DetailView: View {
             Spacer()
         }
         .padding()
-        .onChange(of: vm.selectedID) {
+        .onChange(of: vm.detailID) {
             syncCaptionFilename()
         }
         .onAppear {
@@ -451,7 +517,7 @@ struct DetailView: View {
     }
 
     private func syncCaptionFilename() {
-        guard let id = vm.selectedID,
+        guard let id = vm.detailID,
               let pair = vm.pairs.first(where: { $0.id == id }) else {
             captionFilename = ""
             return
@@ -460,9 +526,8 @@ struct DetailView: View {
     }
 }
 
-// Isolates caption editing state so that per-keystroke @State changes
-// only invalidate this view, NOT the parent DetailView (which contains
-// the expensive ZoomablePannableImage).
+// MARK: - Caption Editing
+
 struct CaptionEditingContainer: View {
     @ObservedObject var vm: DatasetViewModel
 
@@ -479,13 +544,10 @@ struct CaptionEditingContainer: View {
         }
         .padding()
         .onChange(of: localText) {
-            // Non-published write — does NOT fire objectWillChange
             vm.liveEditingText = localText
-            // Only fires objectWillChange on actual state transitions
-            // (false→true on first keystroke, NOT on every keystroke)
             vm.setEditingDirty(localText != savedText)
         }
-        .onChange(of: vm.selectedID) {
+        .onChange(of: vm.detailID) {
             flushAndSync()
         }
         .onChange(of: vm.captionReloadToken) {
@@ -496,7 +558,6 @@ struct CaptionEditingContainer: View {
         }
     }
 
-    /// Flush current edits to pairs before loading new selection.
     private func flushAndSync() {
         if let oldID = currentID,
            let idx = vm.pairs.firstIndex(where: { $0.id == oldID }),
@@ -507,7 +568,7 @@ struct CaptionEditingContainer: View {
     }
 
     private func syncFromVM() {
-        guard let id = vm.selectedID,
+        guard let id = vm.detailID,
               let pair = vm.pairs.first(where: { $0.id == id }) else {
             localText = ""
             savedText = ""

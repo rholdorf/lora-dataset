@@ -19,6 +19,10 @@ struct ImageCaptionPair: Identifiable, Hashable {
         captionText != savedCaptionText
     }
 
+    var hasEmptyCaption: Bool {
+        captionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     // Como todos os campos usados já são Hashable, o compilador sintetiza Hashable/Equatable.
     // Se quiser garantir que só o `id` determine identidade na seleção, pode customizar:
 

@@ -8,11 +8,24 @@ class DatasetViewModel: ObservableObject {
     @Published var pairs: [ImageCaptionPair] = []
     @Published var selectedID: UUID? = nil {
         didSet {
-            // Persist selected image path when selection changes
-            if let pair = selectedPair {
+            // Heavy side-effects (UserDefaults write, QL update) are deferred
+            // to detailID.didSet so they only run when the detail pane is
+            // actually about to refresh (after debounce), not on every keypress.
+        }
+    }
+
+    /// Debounced mirror of selectedID. Updated 150 ms after the last
+    /// selectedID change. The detail pane (filename label, caption editor)
+    /// observes detailID so it only rebuilds when navigation settles,
+    /// keeping the main thread free for smooth list scrolling.
+    @Published var detailID: UUID? = nil {
+        didSet {
+            // Persist selected image path and update Quick Look only when
+            // the detail pane commits to showing a new selection.
+            if let id = detailID,
+               let pair = pairs.first(where: { $0.id == id }) {
                 UserDefaults.standard.set(pair.imageURL.path, forKey: "lastSelectedImagePath")
             }
-            // Update Quick Look panel if visible
             updateQuickLookIfVisible()
         }
     }
@@ -317,6 +330,9 @@ class DatasetViewModel: ObservableObject {
         } else {
             selectedID = pairs.first?.id
         }
+        // On initial load / folder switch, commit detail pane immediately
+        // (no navigation debounce needed here).
+        detailID = selectedID
 
         // Trigger initial prefetch around selected image (per user decision: prefetch on folder load)
         if let id = selectedID {
@@ -542,7 +558,11 @@ class DatasetViewModel: ObservableObject {
 
     private func updateQuickLookIfVisible() {
         let panel = QLPreviewPanel.shared()!
-        guard panel.isVisible, let pair = selectedPair else { return }
+        guard panel.isVisible else { return }
+        // Use detailID (the debounced selection) so QL only refreshes
+        // when the detail pane actually commits to a new image.
+        guard let id = detailID,
+              let pair = pairs.first(where: { $0.id == id }) else { return }
         qlPreviewHelper.previewURL = pair.imageURL
         panel.reloadData()
     }

@@ -41,5 +41,15 @@ func loadImage(url: URL, maxPixelSize: Int) -> NSImage? {
         return nil
     }
 
-    return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+    // Set the NSImage size in display points, not raw pixels.  The cgImage
+    // dimensions are in physical pixels (up to maxPixelSize).  NSImage.size
+    // must be in logical points so that callers such as ZoomablePannableImage
+    // can compute a correct fit-scale without knowing the display scale factor.
+    //
+    // NSScreen.main is safe to access from any thread on macOS.  We fall back
+    // to 2.0 (standard Retina) if the screen is unavailable at decode time.
+    let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+    let pointWidth  = CGFloat(cgImage.width)  / scale
+    let pointHeight = CGFloat(cgImage.height) / scale
+    return NSImage(cgImage: cgImage, size: NSSize(width: pointWidth, height: pointHeight))
 }
