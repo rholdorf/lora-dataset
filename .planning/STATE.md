@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Performance & Live Sync
 status: planning
-stopped_at: Phase 10 context gathered
-last_updated: "2026-03-16T18:42:30.750Z"
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-03-16T19:27:32.170Z"
 last_activity: 2026-03-16 — v1.5 roadmap created
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-16)
 ## Current Position
 
 Phase: 10 of 12 (Image Cache + Prefetch)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-03-16 — v1.5 roadmap created
+Plan: 01 complete, 02 pending
+Status: In progress
+Last activity: 2026-03-16 — Phase 10 Plan 01 complete (ImageLoader + ImageCacheActor)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█████░░░░░] 50% (1/2 plans complete)
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [░░░░░░░░░░] 0%
 | 7 | 1 | 45 min | 45 min |
 | 8 | 1 | 20 min | 20 min |
 | 9 | 1 | manual | iterative |
+| 10 (P01) | 1 | 5 min | 5 min |
 
 ## Accumulated Context
 
@@ -65,10 +66,17 @@ Progress: [░░░░░░░░░░] 0%
 | 09 | NSEvent local key monitor for QL navigation | QLPreviewPanel steals focus; monitor intercepts keys reliably |
 | 09 | Async image loading via Task.detached | Prevents main thread blocking during rapid navigation |
 
+### Decisions Made (v1.5 Phase 10)
+
+| Phase | Decision | Rationale |
+|-------|----------|-----------|
+| 10 | Adaptive cache budget: 15% of physicalMemory | Better than fixed 200MB — scales to available RAM on each machine |
+| 10 | CGImageSource thumbnail decode (not NSImage(contentsOf:)) | Decodes at display size, avoids full-resolution memory load, immediate decode via kCGImageSourceShouldCacheImmediately |
+| 10 | [URL] access-order array + dictionary for LRU | Simpler than doubly-linked list; acceptable for dataset sizes in the hundreds |
+| 10 | NSImage @unchecked @retroactive Sendable at file scope | Required for actor isolation — NSImage is safe once drawn |
+
 ### Key Decisions Pending (v1.5)
 
-- Phase 10: adaptive cache sizing (0.15 * physicalMemory) vs. fixed 200 MB limit — decide before coding
-- Phase 10: CGImageSource thumbnail decode path vs. NSImage(contentsOf:) — add only if profiling shows residual lag
 - Phase 12: exact UX for dirty-caption conflict prompt (style, button labels, dismiss behavior)
 
 ### Blockers/Concerns
@@ -77,6 +85,6 @@ Progress: [░░░░░░░░░░] 0%
 
 ## Session Continuity
 
-Last session: 2026-03-16T18:42:30.743Z
-Stopped at: Phase 10 context gathered
-Next: `/gsd:plan-phase 10`
+Last session: 2026-03-16T19:27:32.168Z
+Stopped at: Completed 10-01-PLAN.md
+Next: `/gsd:execute-phase 10 02` (wire ImageCacheActor into DatasetViewModel + prefetch)

@@ -9,11 +9,11 @@ Requirements for v1.5 Performance & Live Sync. Each maps to roadmap phases.
 
 ### Cache & Prefetch
 
-- [ ] **CACHE-01**: Images load from in-memory LRU cache with sub-50ms display on cache hit
-- [ ] **CACHE-02**: Cache uses decoded pixel byte cost (width × height × 4) for memory accounting
+- [x] **CACHE-01**: Images load from in-memory LRU cache with sub-50ms display on cache hit
+- [x] **CACHE-02**: Cache uses decoded pixel byte cost (width × height × 4) for memory accounting
 - [ ] **CACHE-03**: ±2 neighboring images are prefetched in background on selection change
-- [ ] **CACHE-04**: Images are decoded via CGImageSource at display size for faster loading
-- [ ] **CACHE-05**: Cache evicts entries under system memory pressure (partial on warning, full on critical)
+- [x] **CACHE-04**: Images are decoded via CGImageSource at display size for faster loading
+- [x] **CACHE-05**: Cache evicts entries under system memory pressure (partial on warning, full on critical)
 - [ ] **CACHE-06**: Stale prefetch tasks are cancelled when user navigates past them
 
 ### Filesystem Watchdog
@@ -54,11 +54,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CACHE-01 | Phase 10 | Pending |
-| CACHE-02 | Phase 10 | Pending |
+| CACHE-01 | Phase 10 | Complete |
+| CACHE-02 | Phase 10 | Complete |
 | CACHE-03 | Phase 10 | Pending |
-| CACHE-04 | Phase 10 | Pending |
-| CACHE-05 | Phase 10 | Pending |
+| CACHE-04 | Phase 10 | Complete |
+| CACHE-05 | Phase 10 | Complete |
 | CACHE-06 | Phase 10 | Pending |
 | WATCH-01 | Phase 11 | Pending |
 | WATCH-02 | Phase 11 | Pending |
