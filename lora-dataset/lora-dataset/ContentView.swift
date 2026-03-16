@@ -242,15 +242,10 @@ struct DetailView: View {
                     VStack(alignment: .leading) {
                         Text("Caption / descrição:")
                             .font(.subheadline)
-                        TextEditor(text: Binding(
+                        CaptionEditorView(text: Binding(
                             get: { vm.pairs[idx].captionText },
                             set: { vm.pairs[idx].captionText = $0 }
                         ))
-                        .font(.body)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.secondary.opacity(0.5))
-                        )
                         .frame(minHeight: 200)
                     }
                     .padding()
