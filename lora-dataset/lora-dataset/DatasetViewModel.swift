@@ -84,6 +84,9 @@ class DatasetViewModel: ObservableObject {
         Task {
             await restorePreviousDirectoryIfAvailable()
         }
+        Task {
+            await imageCache.installMemoryPressureMonitor()
+        }
     }
 
     // Start security-scoped access and keep it active
