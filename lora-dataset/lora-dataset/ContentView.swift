@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @StateObject var vm = DatasetViewModel()
@@ -43,6 +44,23 @@ struct ContentView: View {
                                 }
                                 .tag(pair.id)
                                 .id(pair.id)
+                                .contextMenu {
+                                    Button {
+                                        vm.revealInFinder(url: pair.imageURL)
+                                    } label: {
+                                        Label("Reveal in Finder", systemImage: "folder.badge.magnifyingglass")
+                                    }
+
+                                    openWithMenu(for: pair.imageURL)
+
+                                    Divider()
+
+                                    Button {
+                                        vm.quickLook(url: pair.imageURL)
+                                    } label: {
+                                        Label("Quick Look", systemImage: "eye")
+                                    }
+                                }
                             }
                         }
                     }
@@ -144,6 +162,71 @@ struct ContentView: View {
 
         loadedImage = NSImage(contentsOf: pair.imageURL)
     }
+
+    @ViewBuilder
+    private func openWithMenu(for fileURL: URL) -> some View {
+        let apps = NSWorkspace.shared.urlsForApplications(toOpen: fileURL)
+        let defaultApp = NSWorkspace.shared.urlForApplication(toOpen: fileURL)
+        let otherApps = apps
+            .filter { $0 != defaultApp }
+            .sorted { $0.deletingPathExtension().lastPathComponent.localizedCaseInsensitiveCompare(
+                $1.deletingPathExtension().lastPathComponent) == .orderedAscending }
+
+        Menu("Open With") {
+            if let defaultAppURL = defaultApp {
+                Button {
+                    vm.openWith(fileURL: fileURL, appURL: defaultAppURL)
+                } label: {
+                    Label {
+                        Text(appName(from: defaultAppURL))
+                            .bold()
+                    } icon: {
+                        Image(nsImage: appIcon(for: defaultAppURL))
+                    }
+                }
+                Divider()
+            }
+
+            ForEach(otherApps, id: \.self) { appURL in
+                Button {
+                    vm.openWith(fileURL: fileURL, appURL: appURL)
+                } label: {
+                    Label {
+                        Text(appName(from: appURL))
+                    } icon: {
+                        Image(nsImage: appIcon(for: appURL))
+                    }
+                }
+            }
+
+            Divider()
+
+            Button("Other...") {
+                chooseApp(for: fileURL)
+            }
+        }
+    }
+
+    private func appName(from url: URL) -> String {
+        url.deletingPathExtension().lastPathComponent
+    }
+
+    private func appIcon(for appURL: URL) -> NSImage {
+        let icon = NSWorkspace.shared.icon(forFile: appURL.path)
+        icon.size = NSSize(width: 16, height: 16)
+        return icon
+    }
+
+    private func chooseApp(for fileURL: URL) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.application]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        if panel.runModal() == .OK, let appURL = panel.url {
+            vm.openWith(fileURL: fileURL, appURL: appURL)
+        }
+    }
 }
 
 // Recursive folder tree view with manual disclosure (not DisclosureGroup)
@@ -201,6 +284,19 @@ struct FolderNodeView: View {
                 .onTapGesture {
                     vm.navigateToFolder(node.url)
                 }
+        }
+        .contextMenu {
+            Button {
+                vm.openInFinder(url: node.url)
+            } label: {
+                Label("Open in Finder", systemImage: "folder")
+            }
+
+            Button {
+                vm.openInTerminal(url: node.url)
+            } label: {
+                Label("Open in Terminal", systemImage: "terminal")
+            }
         }
     }
 }
