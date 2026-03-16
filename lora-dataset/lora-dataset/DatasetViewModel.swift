@@ -18,6 +18,10 @@ class DatasetViewModel: ObservableObject {
     }
     @Published var directoryURL: URL? = nil
 
+    // Image cache and prefetch infrastructure
+    let imageCache = ImageCacheActor()
+    private(set) var prefetchTasks: [URL: Task<Void, Never>] = [:]
+
     // Folder tree - root of selected directory
     @Published var folderTree: [FileNode] = []
 
@@ -149,6 +153,13 @@ class DatasetViewModel: ObservableObject {
             // Start and keep security-scoped access active
             startSecurityScopedAccess()
 
+            // Cancel all in-flight prefetches and clear cache for new directory
+            for (_, task) in prefetchTasks { task.cancel() }
+            prefetchTasks.removeAll()
+            print("[cache] cleared prefetch tasks for folder change")
+            Task { await imageCache.clear() }
+            print("[cache] cache cleared for folder change")
+
             // Build folder tree from root
             folderTree = buildFolderTree(from: url)
 
@@ -228,6 +239,15 @@ class DatasetViewModel: ObservableObject {
 
     // Navigate to a folder (called when user clicks folder in tree)
     func navigateToFolder(_ url: URL) {
+        // Cancel all in-flight prefetches
+        for (_, task) in prefetchTasks { task.cancel() }
+        prefetchTasks.removeAll()
+        print("[cache] cleared prefetch tasks for folder change")
+
+        // Clear cache (per user decision: clear entire cache on folder change)
+        Task { await imageCache.clear() }
+        print("[cache] cache cleared for folder change")
+
         directoryURL = url
         UserDefaults.standard.set(url.path, forKey: "lastViewedFolderPath")
         scanCurrentDirectory()
@@ -293,6 +313,11 @@ class DatasetViewModel: ObservableObject {
             lastSelectedImagePath = nil // Clear after one-time restore
         } else {
             selectedID = pairs.first?.id
+        }
+
+        // Trigger initial prefetch around selected image (per user decision: prefetch on folder load)
+        if let id = selectedID {
+            triggerPrefetch(aroundID: id)
         }
     }
 
@@ -463,6 +488,38 @@ class DatasetViewModel: ObservableObject {
         if let monitor = qlKeyMonitor {
             NSEvent.removeMonitor(monitor)
             qlKeyMonitor = nil
+        }
+    }
+
+    func triggerPrefetch(aroundID id: UUID, displaySize: Int = 800) {
+        guard let idx = pairs.firstIndex(where: { $0.id == id }) else { return }
+        let lo = max(0, idx - 2)
+        let hi = min(pairs.count - 1, idx + 2)
+        let windowURLs = Set((lo...hi).map { pairs[$0].imageURL })
+
+        // Cancel tasks outside the new window
+        for (url, task) in prefetchTasks where !windowURLs.contains(url) {
+            task.cancel()
+            prefetchTasks.removeValue(forKey: url)
+            print("[cache] cancelled prefetch for \(url.lastPathComponent)")
+        }
+
+        // Start tasks for window entries not yet cached or in-flight
+        for i in lo...hi {
+            let url = pairs[i].imageURL
+            guard prefetchTasks[url] == nil else { continue }
+            prefetchTasks[url] = Task.detached(priority: .utility) { [imageCache] in
+                guard !Task.isCancelled else { return }
+                // Check cache first (avoid redundant decode)
+                if await imageCache.image(for: url) != nil { return }
+                guard !Task.isCancelled else { return }
+                if let img = loadImage(url: url, maxPixelSize: displaySize) {
+                    let cost = img.representations.first.map { $0.pixelsWide * $0.pixelsHigh * 4 }
+                        ?? Int(img.size.width * 2 * img.size.height * 2 * 4)
+                    await imageCache.insert(img, cost: cost, for: url)
+                    print("[cache] prefetched \(url.lastPathComponent) (\(cost) bytes)")
+                }
+            }
         }
     }
 
