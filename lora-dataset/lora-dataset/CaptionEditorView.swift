@@ -143,7 +143,7 @@ struct CaptionEditorView: NSViewRepresentable {
 extension CaptionEditorView {
     /// Creates an NSScrollView with a configured CaptionTextView, for use in unit tests.
     /// This avoids needing to construct an NSViewRepresentable.Context in test code.
-    func makeNSViewForTesting() -> NSScrollView {
+    @MainActor func makeNSViewForTesting() -> NSScrollView {
         let textStorage = NSTextStorage()
         let layoutManager = NSLayoutManager()
         textStorage.addLayoutManager(layoutManager)

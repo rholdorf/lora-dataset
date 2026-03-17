@@ -7,7 +7,7 @@ import Testing
 import AppKit
 @testable import lora_dataset
 
-@Suite("CaptionEditorView NSTextView configuration")
+@Suite("CaptionEditorView NSTextView configuration", .serialized)
 @MainActor
 struct CaptionEditorViewTests {
 
