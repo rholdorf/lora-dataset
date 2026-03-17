@@ -8,6 +8,7 @@ import AppKit
 @testable import lora_dataset
 
 @Suite("CaptionEditorView NSTextView configuration")
+@MainActor
 struct CaptionEditorViewTests {
 
     /// Helper: extract configured NSTextView from CaptionEditorView
