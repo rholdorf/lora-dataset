@@ -55,7 +55,7 @@ completed: 2026-03-16
 - **Duration:** 6 min
 - **Started:** 2026-03-16T22:08:45Z
 - **Completed:** 2026-03-16T22:14:45Z
-- **Tasks:** 1 complete (Task 2 is a human-verify checkpoint, pending user verification)
+- **Tasks:** 2 complete (Task 1: auto; Task 2: human-verify checkpoint — approved by user)
 - **Files modified:** 1
 
 ## Accomplishments
@@ -74,7 +74,7 @@ completed: 2026-03-16
 Each task was committed atomically:
 
 1. **Task 1: Wire watchdog into DatasetViewModel** - `2127545` (feat)
-2. **Task 2: Verify filesystem watchdog behavior** - PENDING (human-verify checkpoint)
+2. **Task 2: Verify filesystem watchdog behavior** - approved by user (human-verify checkpoint: all 8 test scenarios confirmed)
 
 ## Files Created/Modified
 
@@ -101,9 +101,9 @@ None — no external service configuration required.
 
 ## Next Phase Readiness
 
-- Watchdog integration complete — after human verification (Task 2 checkpoint), Phase 11 is functionally complete
-- Phase 12 (dirty-caption conflict prompt) can proceed once Task 2 is verified
-- The `navigateToSurvivingAncestor` and `performTreeRescan` deleted-folder paths will need manual testing as part of the Task 2 checkpoint
+- Watchdog integration complete — Phase 11 is fully complete (all 8 manual test scenarios verified by user)
+- Phase 12 (Filesystem Watchdog -- Caption Content Changes) is unblocked and ready to begin
+- Phase 12 will add a file-content watcher on the selected caption file with a dirty-caption conflict prompt (UX decision still pending per STATE.md)
 
 ---
 *Phase: 11-filesystem-watchdog-structural-changes*
