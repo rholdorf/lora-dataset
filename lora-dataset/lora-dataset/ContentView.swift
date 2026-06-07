@@ -7,6 +7,11 @@ struct ContentView: View {
     @State private var imageScale: CGFloat = 1.0
     @State private var imageOffset: CGSize = .zero
     @State private var loadedImage: NSImage? = nil
+    /// File modification date of `loadedImage`, captured at decode time.
+    /// Used by the scroll-zoom freshness check as the baseline — independent
+    /// of the cache, since the cache may have been evicted (watchdog,
+    /// memory pressure) while `loadedImage` is still on screen.
+    @State private var loadedImageMtime: Date? = nil
     @State private var showSpinner: Bool = false
     @State private var loadError: Bool = false
     @State private var loadErrorFilename: String = ""
@@ -23,6 +28,7 @@ struct ContentView: View {
             DetailView(
                 vm: vm,
                 loadedImage: $loadedImage,
+                loadedImageMtime: $loadedImageMtime,
                 imageScale: $imageScale,
                 imageOffset: $imageOffset,
                 showSpinner: $showSpinner,
@@ -75,6 +81,12 @@ struct ContentView: View {
         .onChange(of: vm.detailID) {
             loadImageForSelection()
         }
+        // When the watchdog or activation observer refreshes the cache for
+        // the displayed image, reload from cache (fast path will hit the
+        // freshly-decoded entry).
+        .onChange(of: vm.imageRefreshToken) {
+            loadImageForSelection()
+        }
     }
 
     private func loadImageForSelection() {
@@ -84,6 +96,7 @@ struct ContentView: View {
         guard let id = vm.detailID,
               let pair = vm.pairs.first(where: { $0.id == id }) else {
             loadedImage = nil
+            loadedImageMtime = nil
             if showSpinner    { showSpinner    = false }
             if loadError      { loadError      = false }
             if imageScale != 1.0 { imageScale  = 1.0  }
@@ -99,12 +112,14 @@ struct ContentView: View {
         currentLoadTask = Task { @MainActor in
             // Fast path: cache hit
             if let cached = await vm.imageCache.image(for: url) {
+                let cachedMtime = await vm.imageCache.cachedMtime(for: url)
                 guard !Task.isCancelled, self.vm.detailID == capturedID else { return }
                 if self.imageScale  != 1.0   { self.imageScale  = 1.0   }
                 if self.imageOffset != .zero  { self.imageOffset = .zero }
                 if self.showSpinner           { self.showSpinner = false }
                 if self.loadError             { self.loadError   = false }
                 self.loadedImage = cached
+                self.loadedImageMtime = cachedMtime
                 print("[cache] hit for \(url.lastPathComponent)")
                 scheduleDebouncedPrefetch(aroundID: capturedID)
                 return
@@ -120,25 +135,31 @@ struct ContentView: View {
                 self.showSpinner = true
             }
 
-            let result = await Task.detached(priority: .userInitiated) {
-                loadImage(url: url, maxPixelSize: 800)
+            let result = await Task.detached(priority: .userInitiated) { () -> (NSImage?, Date?) in
+                // Capture mtime BEFORE decode so a later file write is detected
+                // on the next freshness check rather than being silently absorbed.
+                let mtime = fileModificationDate(url)
+                let img = loadImage(url: url, maxPixelSize: 800)
+                return (img, mtime)
             }.value
 
             spinnerTask.cancel()
             guard !Task.isCancelled, self.vm.detailID == capturedID else { return }
             if self.showSpinner { self.showSpinner = false }
 
-            if let img = result {
+            if let img = result.0 {
                 if self.imageScale  != 1.0   { self.imageScale  = 1.0   }
                 if self.imageOffset != .zero  { self.imageOffset = .zero }
                 if self.loadError             { self.loadError   = false }
                 self.loadedImage = img
+                self.loadedImageMtime = result.1
                 let cost = img.representations.first.map { $0.pixelsWide * $0.pixelsHigh * 4 }
                     ?? Int(img.size.width * img.size.height * 4)
-                await vm.imageCache.insert(img, cost: cost, for: url)
+                await vm.imageCache.insert(img, cost: cost, mtime: result.1, for: url)
                 scheduleDebouncedPrefetch(aroundID: capturedID)
             } else {
                 self.loadedImage = nil
+                self.loadedImageMtime = nil
                 if self.imageScale  != 1.0   { self.imageScale  = 1.0   }
                 if self.imageOffset != .zero  { self.imageOffset = .zero }
                 if !self.loadError            { self.loadError   = true  }
@@ -440,6 +461,7 @@ struct FolderNodeView: View {
 struct DetailView: View {
     @ObservedObject var vm: DatasetViewModel
     @Binding var loadedImage: NSImage?
+    @Binding var loadedImageMtime: Date?
     @Binding var imageScale: CGFloat
     @Binding var imageOffset: CGSize
     @Binding var showSpinner: Bool
@@ -447,6 +469,7 @@ struct DetailView: View {
     @Binding var loadErrorFilename: String
 
     @State private var captionFilename: String = ""
+    @State private var staleCheckTask: Task<Void, Never>? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -470,7 +493,8 @@ struct DetailView: View {
                             ZoomablePannableImage(
                                 image: nsImage,
                                 scale: $imageScale,
-                                offset: $imageOffset
+                                offset: $imageOffset,
+                                onScrollZoom: scheduleStaleCheck
                             )
                             .frame(width: 400, height: 400)
                             .clipped()
@@ -523,6 +547,48 @@ struct DetailView: View {
             return
         }
         captionFilename = pair.captionURL.lastPathComponent
+    }
+
+    /// Called from `ZoomablePannableImage` after each scroll-wheel zoom step.
+    /// Detection of new file versions is owned by the watchdog / activation
+    /// observer in DatasetViewModel — this hook just makes sure the view is
+    /// showing whatever the cache currently holds. Cache-only, no disk I/O.
+    ///
+    /// In practice the watchdog already triggers an explicit reload via
+    /// `imageRefreshToken`, so this is a belt-and-braces sync for the rare
+    /// case where the cache was refreshed but the view's `loadedImage` is
+    /// still pointing at the old instance (e.g. a refresh that landed while
+    /// the view was offscreen).
+    private func scheduleStaleCheck() {
+        staleCheckTask?.cancel()
+
+        guard let id = vm.detailID,
+              let pair = vm.pairs.first(where: { $0.id == id }) else { return }
+        let url = pair.imageURL
+        let capturedID = id
+        let imageCache = vm.imageCache
+
+        staleCheckTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            guard !Task.isCancelled, vm.detailID == capturedID else { return }
+
+            guard let entry = await imageCache.entry(for: url) else { return }
+            guard !Task.isCancelled, vm.detailID == capturedID else { return }
+
+            // Swap only if the cache holds a different version than what's
+            // on screen. Use mtime as the version identity; fall back to
+            // instance identity when no mtime is recorded.
+            let isSameVersion: Bool
+            if let cachedMtime = entry.mtime, let displayedMtime = loadedImageMtime {
+                isSameVersion = cachedMtime == displayedMtime
+            } else {
+                isSameVersion = entry.image === loadedImage
+            }
+            guard !isSameVersion else { return }
+
+            loadedImage = entry.image
+            loadedImageMtime = entry.mtime
+        }
     }
 }
 
