@@ -8,6 +8,11 @@ struct ZoomablePannableImage: NSViewRepresentable {
     @Binding var scale: CGFloat
     @Binding var offset: CGSize
 
+    /// Called from the AppKit scroll-wheel handler after each zoom step.
+    /// Used to schedule a background staleness check on the displayed image
+    /// without blocking the scroll interaction.
+    var onScrollZoom: (() -> Void)? = nil
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
@@ -36,6 +41,7 @@ struct ZoomablePannableImage: NSViewRepresentable {
         view.scale = scale
         view.offset = offset
         view.coordinator = context.coordinator
+        view.onScrollZoom = onScrollZoom
         // Attempt to fit on creation; if bounds are zero the view sets
         // needsFit = true and will fit on first draw (see ZoomableImageNSView).
         view.resetToFit()
@@ -45,6 +51,7 @@ struct ZoomablePannableImage: NSViewRepresentable {
     func updateNSView(_ nsView: ZoomableImageNSView, context: Context) {
         // Atualiza imagem e reset quando diferente
         nsView.coordinator = context.coordinator
+        nsView.onScrollZoom = onScrollZoom
         var needsRedraw = false
         if nsView.image !== image {
             nsView.image = image
@@ -96,6 +103,9 @@ final class ZoomableImageNSView: NSView {
     }
 
     var onChange: ((CGFloat, CGSize) -> Void)?
+    /// Called once per scroll-wheel zoom step. Caller is responsible for
+    /// debouncing and dispatching any expensive work off the main thread.
+    var onScrollZoom: (() -> Void)?
     weak var coordinator: ZoomablePannableImage.Coordinator?
 
     private var isDragging = false
@@ -270,6 +280,10 @@ final class ZoomableImageNSView: NSView {
             notifyChanges()
         }
         needsDisplay = true
+
+        // Notify SwiftUI side so it can schedule a background freshness
+        // check on the displayed image (debounced + decoded off-main).
+        onScrollZoom?()
     }
 
     // Pan com clique e arraste

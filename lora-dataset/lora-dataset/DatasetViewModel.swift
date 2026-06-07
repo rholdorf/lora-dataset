@@ -45,6 +45,20 @@ class DatasetViewModel: ObservableObject {
     // CaptionEditingContainer can re-sync its local text state.
     @Published var captionReloadToken: Int = 0
 
+    /// Bumped when the currently-displayed image's cache entry has been
+    /// refreshed from disk (by the watchdog or app-activation observer).
+    /// ContentView observes this and reloads `loadedImage` from cache.
+    @Published var imageRefreshToken: Int = 0
+
+    /// Set of URLs currently being re-decoded by `refreshIfStale` so we don't
+    /// fire duplicate decodes when multiple signals (watchdog + activation)
+    /// arrive close together for the same file.
+    private var refreshTasks: [URL: Task<Void, Never>] = [:]
+
+    /// NotificationCenter token for the NSApp activation observer; released
+    /// on deinit.
+    private var activationObserver: NSObjectProtocol?
+
     // Live editing text — written directly by CaptionEditingContainer without
     // triggering objectWillChange. Read by saveSelected().
     var liveEditingText: String = ""
@@ -104,6 +118,27 @@ class DatasetViewModel: ObservableObject {
         }
         Task {
             await imageCache.installMemoryPressureMonitor()
+        }
+
+        // The directory watchdog uses a `.write` event mask on the directory
+        // vnode, which fires for add/remove/rename but NOT for in-place file
+        // content modifications. When the user edits an image in another app
+        // that saves in place, our only reliable signal is the app coming back
+        // to the foreground — so re-check the displayed image's freshness then.
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshDisplayedImageIfStale()
+            }
+        }
+    }
+
+    deinit {
+        if let observer = activationObserver {
+            NotificationCenter.default.removeObserver(observer)
         }
     }
 
@@ -356,11 +391,13 @@ class DatasetViewModel: ObservableObject {
             prefetchTasks.removeValue(forKey: url)
         }
 
-        // Force-evict surviving URLs to handle replaced files (same filename, different content)
-        // The .write event fires because the directory changed, so something happened.
-        // Evicting surviving entries ensures replaced files are never shown stale.
+        // For surviving URLs, check freshness in the background instead of
+        // blindly evicting. If the on-disk mtime is newer than the cached
+        // mtime, re-decode and replace the cache entry. If the URL matches
+        // the displayed image, the view will be signalled via imageRefreshToken.
+        // For URLs that haven't changed, this is a cheap stat() + no-op.
         for url in surviving {
-            Task { await imageCache.remove(for: url) }
+            refreshIfStale(url: url)
         }
 
         // Selection repair
@@ -407,6 +444,66 @@ class DatasetViewModel: ObservableObject {
             navigateToSurvivingAncestor(from: contentURL)
         }
         print("[watchdog] tree rescan complete")
+    }
+
+    // MARK: - Image Freshness (mtime-driven cache refresh)
+
+    /// Public entry point: re-check the freshness of whichever image is
+    /// currently displayed. Cheap if nothing changed; refreshes the cache and
+    /// signals the view if the file on disk is newer than the cached version.
+    func refreshDisplayedImageIfStale() {
+        guard let id = detailID,
+              let pair = pairs.first(where: { $0.id == id }) else { return }
+        refreshIfStale(url: pair.imageURL)
+    }
+
+    /// Off-main: stat the file, compare mtime with the cache, and re-decode
+    /// only when the disk version is newer. Updates the cache entry with the
+    /// new image + mtime; if `url` matches `detailID`, bumps
+    /// `imageRefreshToken` so ContentView can swap `loadedImage` from cache.
+    ///
+    /// De-duped per URL: concurrent invocations for the same URL collapse to
+    /// the first in-flight task.
+    private func refreshIfStale(url: URL) {
+        guard refreshTasks[url] == nil else { return }
+
+        refreshTasks[url] = Task.detached(priority: .utility) { [imageCache, weak self] in
+            defer {
+                Task { @MainActor [weak self] in
+                    self?.refreshTasks.removeValue(forKey: url)
+                }
+            }
+
+            let diskMtime = fileModificationDate(url)
+            let cachedMtime = await imageCache.cachedMtime(for: url)
+
+            // Re-decode rules:
+            //   - disk missing  → file gone or unreadable, nothing to do
+            //   - cache empty   → re-decode (will populate)
+            //   - both present  → re-decode only if disk is strictly newer
+            guard let diskMtime else { return }
+            if let cachedMtime, diskMtime <= cachedMtime { return }
+
+            guard !Task.isCancelled else { return }
+
+            // Capture mtime BEFORE decode so a concurrent write is detected on
+            // the next pass rather than absorbed silently.
+            let mtimeBeforeDecode = fileModificationDate(url)
+            guard let img = loadImage(url: url, maxPixelSize: 800) else { return }
+            guard !Task.isCancelled else { return }
+
+            let cost = img.representations.first.map { $0.pixelsWide * $0.pixelsHigh * 4 }
+                ?? Int(img.size.width * img.size.height * 4)
+            await imageCache.insert(img, cost: cost, mtime: mtimeBeforeDecode, for: url)
+
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                // Signal the view only if this URL is still the displayed one.
+                if self.pairs.first(where: { $0.id == self.detailID })?.imageURL == url {
+                    self.imageRefreshToken &+= 1
+                }
+            }
+        }
     }
 
     private func navigateToSurvivingAncestor(from url: URL) {
@@ -688,10 +785,13 @@ class DatasetViewModel: ObservableObject {
                 // Check cache first (avoid redundant decode)
                 if await imageCache.image(for: url) != nil { return }
                 guard !Task.isCancelled else { return }
+                // Capture mtime BEFORE decode so a subsequent on-disk write is
+                // detected on the next freshness check (see DetailView.scheduleStaleCheck).
+                let mtime = fileModificationDate(url)
                 if let img = loadImage(url: url, maxPixelSize: displaySize) {
                     let cost = img.representations.first.map { $0.pixelsWide * $0.pixelsHigh * 4 }
                         ?? Int(img.size.width * 2 * img.size.height * 2 * 4)
-                    await imageCache.insert(img, cost: cost, for: url)
+                    await imageCache.insert(img, cost: cost, mtime: mtime, for: url)
                     print("[cache] prefetched \(url.lastPathComponent) (\(cost) bytes)")
                 }
             }

@@ -245,7 +245,7 @@ struct ImageCacheActorRemoveTests {
         let img = makeImage(width: 10, height: 10)
         let cost = 10 * 10 * 4  // 400 bytes
 
-        await cache.insert(img, cost: cost, for: url)
+        await cache.insert(img, cost: cost, mtime: nil, for: url)
 
         let before = await cache.image(for: url)
         #expect(before != nil, "Image should be present before remove")
@@ -282,8 +282,8 @@ struct ImageCacheActorRemoveTests {
         let cost1 = 400
         let cost2 = 1600
 
-        await cache.insert(makeImage(width: 10, height: 10), cost: cost1, for: url1)
-        await cache.insert(makeImage(width: 20, height: 20), cost: cost2, for: url2)
+        await cache.insert(makeImage(width: 10, height: 10), cost: cost1, mtime: nil, for: url1)
+        await cache.insert(makeImage(width: 20, height: 20), cost: cost2, mtime: nil, for: url2)
 
         await cache.remove(for: url1)
 

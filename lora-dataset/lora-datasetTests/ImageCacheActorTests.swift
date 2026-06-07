@@ -31,7 +31,7 @@ struct ImageCacheActorTests {
         let url = URL(fileURLWithPath: "/tmp/img1.png")
         let image = makeImage(width: 10, height: 10)
         let cost = expectedCost(width: 10, height: 10)
-        await cache.insert(image, cost: cost, for: url)
+        await cache.insert(image, cost: cost, mtime: nil, for: url)
         let result = await cache.image(for: url)
         #expect(result === image)
     }
@@ -53,8 +53,8 @@ struct ImageCacheActorTests {
         let img2 = makeImage(width: 20, height: 20)
         let cost1 = expectedCost(width: 10, height: 10)  // 400
         let cost2 = expectedCost(width: 20, height: 20)  // 1600
-        await cache.insert(img1, cost: cost1, for: url1)
-        await cache.insert(img2, cost: cost2, for: url2)
+        await cache.insert(img1, cost: cost1, mtime: nil, for: url1)
+        await cache.insert(img2, cost: cost2, mtime: nil, for: url2)
         let total = await cache.currentTotalCost
         #expect(total == cost1 + cost2)
     }
@@ -72,11 +72,11 @@ struct ImageCacheActorTests {
         let img2 = makeImage(width: 10, height: 10)
         let cost = expectedCost(width: 10, height: 10) // 400
 
-        await cache.insert(img1, cost: cost, for: url1)
+        await cache.insert(img1, cost: cost, mtime: nil, for: url1)
         // Touch url1 so it's the most recent
         _ = await cache.image(for: url1)
         // Now insert a second entry; total would be 800 > 500
-        await cache.insert(img2, cost: cost, for: url2)
+        await cache.insert(img2, cost: cost, mtime: nil, for: url2)
         // img1 was accessed more recently than the initial insert order,
         // but img2 is the newest. Eviction removes from the back = img1.
         // After re-reading url1 above, url1 is MRU and url2 is LRU after insert.
@@ -96,7 +96,7 @@ struct ImageCacheActorTests {
         for i in 1...5 {
             let url = URL(fileURLWithPath: "/tmp/img-frac-\(i).png")
             let img = makeImage(width: 10, height: 10)
-            await cache.insert(img, cost: expectedCost(width: 10, height: 10), for: url)
+            await cache.insert(img, cost: expectedCost(width: 10, height: 10), mtime: nil, for: url)
         }
         await cache.evictToFraction(0.5)
         let total = await cache.currentTotalCost
@@ -109,7 +109,7 @@ struct ImageCacheActorTests {
         let cache = ImageCacheActor(budgetBytes: 10_000_000)
         let url = URL(fileURLWithPath: "/tmp/img-clear.png")
         let img = makeImage(width: 10, height: 10)
-        await cache.insert(img, cost: expectedCost(width: 10, height: 10), for: url)
+        await cache.insert(img, cost: expectedCost(width: 10, height: 10), mtime: nil, for: url)
         await cache.clear()
         let result = await cache.image(for: url)
         let count = await cache.entryCount
@@ -127,7 +127,7 @@ struct ImageCacheActorTests {
         for i in 1...5 {
             let url = URL(fileURLWithPath: "/tmp/img-warn-\(i).png")
             let img = makeImage(width: 10, height: 10)
-            await cache.insert(img, cost: expectedCost(width: 10, height: 10), for: url)
+            await cache.insert(img, cost: expectedCost(width: 10, height: 10), mtime: nil, for: url)
         }
         await cache.handleMemoryPressure(.warning)
         let total = await cache.currentTotalCost
@@ -141,7 +141,7 @@ struct ImageCacheActorTests {
         for i in 1...3 {
             let url = URL(fileURLWithPath: "/tmp/img-crit-\(i).png")
             let img = makeImage(width: 10, height: 10)
-            await cache.insert(img, cost: expectedCost(width: 10, height: 10), for: url)
+            await cache.insert(img, cost: expectedCost(width: 10, height: 10), mtime: nil, for: url)
         }
         await cache.handleMemoryPressure(.critical)
         let count = await cache.entryCount

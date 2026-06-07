@@ -53,3 +53,14 @@ func loadImage(url: URL, maxPixelSize: Int) -> NSImage? {
     let pointHeight = CGFloat(cgImage.height) / scale
     return NSImage(cgImage: cgImage, size: NSSize(width: pointWidth, height: pointHeight))
 }
+
+/// Reads the file's content modification date. Uses `FileManager` rather
+/// than `URL.resourceValues` because the latter caches results on the URL
+/// instance — subsequent reads of `.contentModificationDateKey` return the
+/// cached value rather than re-stat'ing, which silently breaks freshness
+/// checks for files modified by another process. `attributesOfItem` does a
+/// fresh `stat(2)` on every call.
+func fileModificationDate(_ url: URL) -> Date? {
+    let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+    return attrs?[.modificationDate] as? Date
+}

@@ -30,6 +30,10 @@ actor ImageCacheActor {
     private struct Entry {
         let image: NSImage
         let cost: Int
+        /// File content modification date captured at decode time. Used by the
+        /// scroll-wheel freshness check to detect on-disk changes without
+        /// re-reading every file on every interaction.
+        let mtime: Date?
     }
 
     // MARK: - Storage
@@ -70,15 +74,37 @@ actor ImageCacheActor {
     /// Inserts `image` into the cache under `url` with a given byte `cost`.
     /// If the entry already exists, it is replaced and the access order updated.
     /// Evicts LRU entries if the total cost exceeds `budgetBytes`.
-    func insert(_ image: NSImage, cost: Int, for url: URL) {
+    ///
+    /// - Parameter mtime: File's content modification date at the time the
+    ///   image was decoded. Pass `nil` if unavailable; callers that rely on
+    ///   freshness checks should always supply it.
+    func insert(_ image: NSImage, cost: Int, mtime: Date?, for url: URL) {
         if let existing = storage[url] {
             totalCost -= existing.cost
             removeFromOrder(url)
         }
-        storage[url] = Entry(image: image, cost: cost)
+        storage[url] = Entry(image: image, cost: cost, mtime: mtime)
         totalCost += cost
         accessOrder.insert(url, at: 0)
         evictIfNeeded()
+    }
+
+    /// Returns the file modification date that was recorded when the entry for
+    /// `url` was inserted, or `nil` if the URL is not cached or was inserted
+    /// without an mtime. Does NOT touch the entry (no MRU promotion).
+    func cachedMtime(for url: URL) -> Date? {
+        return storage[url]?.mtime
+    }
+
+    /// Returns both the cached image and its recorded mtime in a single actor
+    /// call, atomically. Use this when both pieces are needed together (e.g.
+    /// the cache-only freshness swap on scroll-wheel zoom) to avoid a TOCTOU
+    /// window where the entry could be evicted between `image(for:)` and
+    /// `cachedMtime(for:)`. Touches the entry (moves it to MRU).
+    func entry(for url: URL) -> (image: NSImage, mtime: Date?)? {
+        guard let entry = storage[url] else { return nil }
+        touch(url)
+        return (entry.image, entry.mtime)
     }
 
     /// Removes a single cached entry by URL. Used for targeted eviction
